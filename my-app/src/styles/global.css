@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@import "./theme.css";
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+
+    /* Usa classes Tailwind via @apply */
+    @apply bg-bg-main;
+
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    @apply outline outline-2 outline-border-focus outline-offset-2;
+  }
+}

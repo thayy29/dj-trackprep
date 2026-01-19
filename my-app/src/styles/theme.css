@@ -1,0 +1,18 @@
+@layer base {
+  :root {
+    /* Layout */
+    --sidebar-width: 260px;
+    --header-height: 72px;
+    --player-height: 92px;
+
+    /* Motion */
+    --transition-fast: 150ms ease;
+    --transition-normal: 250ms ease;
+
+    /* Z-index */
+    --z-sidebar: 20;
+    --z-header: 30;
+    --z-player: 40;
+    --z-modal: 100;
+  }
+}
