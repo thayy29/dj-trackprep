@@ -1,18 +1,23 @@
-@layer base {
-  :root {
-    /* Layout */
-    --sidebar-width: 260px;
-    --header-height: 72px;
-    --player-height: 92px;
-
-    /* Motion */
-    --transition-fast: 150ms ease;
-    --transition-normal: 250ms ease;
-
-    /* Z-index */
-    --z-sidebar: 20;
-    --z-header: 30;
-    --z-player: 40;
-    --z-modal: 100;
-  }
+:root {
+  --background-main: #121212;
+  --background-surface: #181818;
+  --background-elevated: #282828;
+  --background-pressed: #333333;
+  --text-high: #FFFFFF;
+  --text-medium: #B3B3B3;
+  --text-low: #6A6A6A;
+  --icon-main: #FFFFFF;
+  --icon-secondary: #B3B3B3;
+  --icon-disabled: #535353;
+  --action-primary: #1DB954;
+  --action-primaryHover: #1ED760;
+  --action-secondary: #7A3EFF;
+  --action-secondaryHover: #8F5FFF;
+  --action-danger: #E91429;
+  --action-success: #1AA34A;
+  --border-light: #282828;
+  --border-focus: #1DB954;
+  --border-error: #E91429;
+  --gradient-brand: linear-gradient(90deg, #1DB954 0%, #7A3EFF 100%);
+  --gradient-break: linear-gradient(90deg, #7A3EFF 0%, #3E2EFF 100%);
 }
