@@ -13,8 +13,8 @@ export const colorTokens = {
   background: {
     main: "#121212",
     surface: "#181818",
-    elevated: "#3939",
-    pressed: "#333333",
+    elevated: "#393939",
+    pressed: "#282828",
   },
   text: {
     high: "#FFFFFF",
