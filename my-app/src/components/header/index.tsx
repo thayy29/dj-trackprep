@@ -1,20 +1,35 @@
+import { useState } from "react";
 import { Card } from "../card";
 import { CardButton } from "../card-button";
-import { cardButtonVariants } from "../card-button/styles";
-export function Header({children}: {children?: React.ReactNode}, variant: 'primary' | 'secondary' = 'primary') {
+import { Logo } from "../logo";
+
+export function Header(variant: 'primary' | 'secondary' = 'primary') {
+    const [totalTracks, setTotalTracks ] = useState(0)
+
+  const handleTrackConverted = () => {
+    setTotalTracks((prev)=> prev + 1);
+  }
   return (
     <header>
-      <div className="w-full flex p-5 gap-3 justify-center items-center bg-background-surface
+    
+      <div className="w-full flex p-5 gap-3 justify-between items-center bg-background-surface
       ">
-          <p className=" text-text-high text-md font-bold">Logo</p>
-          
-          <Card title="Total Tracks:" counter="3">
-            {children}
-            </Card>
+            <Logo />
+            <div className="flex gap-2 items-center">
+            <Card title="Total Tracks:" counter={totalTracks}/>
+            <CardButton icon="download" title="Download All" variant={"primary"} />
+            <CardButton 
+              img="https://github.com/thayy29.png" 
+              title="Thayana" 
+              subTitle="Pro Account" 
+              icon="profile"
+              iconButton={true} 
+              variant="secondary"
+              size="sm"
+            />
 
-            <CardButton icon={"download"} variant={variant} />
-            <CardButton icon={"profile"} img="https://github.com/thayy29.png" title="Thayana" subTitle="Pro account" iconButton={true} variant="secondary"/>
-      
+            </div>
+            
       </div>
     </header>
   );
