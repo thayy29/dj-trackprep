@@ -1,0 +1,122 @@
+import { Router, Request, Response } from "express";
+import { z } from "zod";
+import multer from "multer";
+import path from "path";
+import { v4 as uuidv4 } from "uuid";
+import { env } from "../env.js";
+import { asyncHandler, AppError } from "../middleware/errorHandler.js";
+import { validateBody } from "../middleware/validation.js";
+import * as trackService from "../services/trackService.js";
+import { logger } from "../logger.js";
+
+const router: Router = Router();
+
+// Configure multer for file uploads
+const upload = multer({
+  dest: env.UPLOAD_DIR,
+  limits: { fileSize: env.MAX_FILE_SIZE },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ["audio/mpeg", "audio/wav", "audio/aiff", "audio/flac"];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new AppError(400, "Invalid file type", "INVALID_FILE_TYPE"));
+    }
+  },
+});
+
+// POST /api/tracks/upload - Upload and create new tracks
+router.post(
+  "/upload",
+  upload.array("files", 50),
+  asyncHandler(async (req, res) => {
+    if (!req.files || req.files.length === 0) {
+      throw new AppError(400, "No files uploaded", "NO_FILES");
+    }
+
+    const files = req.files as Express.Multer.File[];
+    const tracks = [];
+
+    for (const file of files) {
+      // Rename file with UUID to avoid collisions
+      const ext = path.extname(file.originalname);
+      const filename = `${uuidv4()}${ext}`;
+      const filePath = path.join(env.UPLOAD_DIR, filename);
+
+      // Move and create track
+      const track = await trackService.createTrack(
+        file.originalname,
+        filePath,
+        file.size
+      );
+
+      // Start analysis in background
+      trackService.analyzeTrack(track.id).catch((err) => {
+        logger.error(`Background analysis failed for ${track.id}:`, err);
+      });
+
+      tracks.push(track);
+    }
+
+    res.status(201).json({ tracks });
+  })
+);
+
+// GET /api/tracks - List all tracks
+router.get(
+  "/",
+  asyncHandler(async (req, res) => {
+    const tracks = await trackService.getTracks();
+    res.json({ tracks });
+  })
+);
+
+// GET /api/tracks/:id - Get single track
+router.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const track = await trackService.getTrack(req.params.id);
+    if (!track) {
+      throw new AppError(404, "Track not found", "TRACK_NOT_FOUND");
+    }
+    res.json({ track });
+  })
+);
+
+// PUT /api/tracks/:id - Update track metadata
+const updateTrackSchema = z.object({
+  title: z.string().min(1).optional(),
+  artist: z.string().optional(),
+  bpm: z.number().min(60).max(300).optional(),
+  key_camelot: z.string().regex(/^([1-9]|1[0-2])[AB]$/).optional(),
+  energy_level: z.number().int().min(1).max(10).optional(),
+});
+
+router.put(
+  "/:id",
+  validateBody(updateTrackSchema),
+  asyncHandler(async (req, res) => {
+    const track = await trackService.updateTrackMetadata(req.params.id, req.body);
+    res.json({ track });
+  })
+);
+
+// DELETE /api/tracks/:id - Delete track
+router.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    await trackService.deleteTrack(req.params.id);
+    res.status(204).send();
+  })
+);
+
+// POST /api/tracks/:id/reanalyze - Force re-analyze track
+router.post(
+  "/:id/reanalyze",
+  asyncHandler(async (req, res) => {
+    const track = await trackService.analyzeTrack(req.params.id);
+    res.json({ track });
+  })
+);
+
+export default router;
