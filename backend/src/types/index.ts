@@ -50,11 +50,16 @@ export interface ConvertPreset {
 
 export interface Export {
   id: string;
-  playlist_id: string;
-  preset_id: string;
+  playlistId?: string;
+  playlist_id?: string;
+  presetId?: string;
+  preset_id?: string;
   status: "pending" | "processing" | "completed" | "error";
+  outputPath?: string;
   output_path?: string;
-  created_at: string;
+  createdAt?: string;
+  created_at?: string;
+  completedAt?: string;
   completed_at?: string;
 }
 

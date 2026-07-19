@@ -1,10 +1,29 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import { asyncHandler, AppError } from "../middleware/errorHandler.js";
 import { validateBody } from "../middleware/validation.js";
-import * as playlistService from "../services/playlistService.js";
+import { getDb } from "../db/database.js";
+import { PlaylistRepository } from "../repositories/PlaylistRepository.js";
+import { TrackRepository } from "../repositories/TrackRepository.js";
+import { PlaylistService } from "../services/playlistService.js";
+import { PlaylistController } from "../controllers/PlaylistController.js";
 
 const router: Router = Router();
+
+let controller: PlaylistController;
+
+router.use(
+  asyncHandler(async (req, res, next) => {
+    if (!controller) {
+      const db = getDb();
+      const playlistRepository = new PlaylistRepository(db);
+      const trackRepository = new TrackRepository(db);
+      const service = new PlaylistService(playlistRepository, trackRepository);
+      controller = new PlaylistController(service);
+    }
+    next();
+  })
+);
 
 // POST /api/playlists - Create new playlist
 const createPlaylistSchema = z.object({
@@ -15,24 +34,16 @@ const createPlaylistSchema = z.object({
 router.post(
   "/",
   validateBody(createPlaylistSchema),
-  asyncHandler(async (req, res) => {
-    const playlist = await playlistService.createPlaylist(
-      req.body.title,
-      req.body.description
-    );
-    res.status(201).json({ playlist });
+  asyncHandler(async (req, res, next) => {
+    controller.create(req, res, next);
   })
 );
 
 // GET /api/playlists/:id - Get playlist with tracks
 router.get(
   "/:id",
-  asyncHandler(async (req, res) => {
-    const playlist = await playlistService.getPlaylist(req.params.id);
-    if (!playlist) {
-      throw new AppError(404, "Playlist not found", "PLAYLIST_NOT_FOUND");
-    }
-    res.json({ playlist });
+  asyncHandler(async (req, res, next) => {
+    controller.getById(req, res, next);
   })
 );
 
@@ -45,22 +56,17 @@ const addTrackSchema = z.object({
 router.post(
   "/:id/tracks",
   validateBody(addTrackSchema),
-  asyncHandler(async (req, res) => {
-    const playlistTrack = await playlistService.addTrackToPlaylist(
-      req.params.id,
-      req.body.track_id,
-      req.body.position
-    );
-    res.status(201).json({ playlistTrack });
+  asyncHandler(async (req, res, next) => {
+    controller.addTrack(req, res, next);
   })
 );
 
 // DELETE /api/playlists/:id/tracks/:trackId - Remove track from playlist
 router.delete(
   "/:id/tracks/:trackId",
-  asyncHandler(async (req, res) => {
-    await playlistService.removeTrackFromPlaylist(req.params.id, req.params.trackId);
-    res.status(204).send();
+  asyncHandler(async (req, res, next) => {
+    req.body = { trackId: req.params.trackId };
+    controller.removeTrack(req, res, next);
   })
 );
 
@@ -77,29 +83,25 @@ const reorderSchema = z.object({
 router.put(
   "/:id/reorder",
   validateBody(reorderSchema),
-  asyncHandler(async (req, res) => {
-    await playlistService.reorderPlaylistTracks(req.params.id, req.body.tracks);
-    const playlist = await playlistService.getPlaylist(req.params.id);
-    res.json({ playlist });
+  asyncHandler(async (req, res, next) => {
+    req.body = { trackOrder: req.body.tracks };
+    controller.reorderTracks(req, res, next);
   })
 );
 
 // POST /api/playlists/:id/auto-order - Auto-sort by harmony & energy
 router.post(
   "/:id/auto-order",
-  asyncHandler(async (req, res) => {
-    await playlistService.autoOrderPlaylist(req.params.id);
-    const playlist = await playlistService.getPlaylist(req.params.id);
-    res.json({ playlist });
+  asyncHandler(async (req, res, next) => {
+    controller.autoOrder(req, res, next);
   })
 );
 
 // DELETE /api/playlists/:id - Delete playlist
 router.delete(
   "/:id",
-  asyncHandler(async (req, res) => {
-    await playlistService.deletePlaylist(req.params.id);
-    res.status(204).send();
+  asyncHandler(async (req, res, next) => {
+    controller.delete(req, res, next);
   })
 );
 

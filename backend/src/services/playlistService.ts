@@ -1,207 +1,100 @@
-import { v4 as uuidv4 } from "uuid";
-import { getDb } from "../db/db.js";
-import { Playlist, PlaylistTrack, Track } from "../types/index.js";
+import { PlaylistRepository } from "../repositories/PlaylistRepository.js";
+import { TrackRepository } from "../repositories/TrackRepository.js";
+import { Playlist, Track } from "../types/index.js";
 import { logger } from "../logger.js";
 import { calculateKeyDistance } from "./audioAnalyzer.js";
 
-export async function createPlaylist(
-  title: string,
-  description?: string
-): Promise<Playlist> {
-  const db = await getDb();
-  const id = uuidv4();
-  const now = new Date().toISOString();
+export class PlaylistService {
+  constructor(
+    private playlistRepository: PlaylistRepository,
+    private trackRepository: TrackRepository
+  ) {}
 
-  await db.run(
-    `INSERT INTO playlists (id, title, description, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?)`,
-    [id, title, description || null, now, now]
-  );
+  async createPlaylist(title: string, description?: string): Promise<Playlist> {
+    const playlist = await this.playlistRepository.create({ title, description });
+    logger.info(`Playlist created: ${playlist.id} - ${title}`);
+    return playlist;
+  }
 
-  logger.info(`Playlist created: ${id} - ${title}`);
-  return {
-    id,
-    title,
-    description,
-    total_duration_ms: 0,
-    total_tracks: 0,
-    created_at: now,
-    updated_at: now,
-  };
-}
+  async getPlaylist(playlistId: string): Promise<Playlist | null> {
+    return this.playlistRepository.getById(playlistId);
+  }
 
-export async function getPlaylist(playlistId: string): Promise<Playlist | null> {
-  const db = await getDb();
-  const playlist = await db.get<Playlist>(
-    "SELECT * FROM playlists WHERE id = ?",
-    [playlistId]
-  );
+  async addTrackToPlaylist(playlistId: string, trackId: string, position?: number): Promise<void> {
+    await this.playlistRepository.addTrack(playlistId, trackId, position);
+    logger.info(`Track added to playlist: ${trackId} -> ${playlistId}`);
+  }
 
-  if (!playlist) return null;
+  async removeTrackFromPlaylist(playlistId: string, trackId: string): Promise<void> {
+    await this.playlistRepository.removeTrack(playlistId, trackId);
+    logger.info(`Track removed from playlist: ${trackId} <- ${playlistId}`);
+  }
 
-  const tracks = await db.all<PlaylistTrack[]>(
-    `SELECT pt.*, t.* FROM playlist_tracks pt
-     JOIN tracks t ON pt.track_id = t.id
-     WHERE pt.playlist_id = ? ORDER BY pt.position ASC`,
-    [playlistId]
-  );
+  async reorderPlaylistTracks(
+    playlistId: string,
+    trackOrder: { trackId: string; position: number }[]
+  ): Promise<void> {
+    await this.playlistRepository.reorderTracks(playlistId, trackOrder);
+    logger.info(`Playlist reordered: ${playlistId}`);
+  }
 
-  return {
-    ...playlist,
-    tracks: tracks as unknown as Track[],
-  };
-}
+  async autoOrderPlaylist(playlistId: string): Promise<void> {
+    const playlist = await this.playlistRepository.getById(playlistId);
+    if (!playlist) return;
 
-export async function addTrackToPlaylist(
-  playlistId: string,
-  trackId: string,
-  position?: number
-): Promise<PlaylistTrack> {
-  const db = await getDb();
-  const id = uuidv4();
+    const tracks = await this.trackRepository.getByPlaylistId(playlistId);
+    if (tracks.length === 0) return;
 
-  // Get current max position
-  const maxPos = await db.get<{ max_pos: number }>(
-    "SELECT MAX(position) as max_pos FROM playlist_tracks WHERE playlist_id = ?",
-    [playlistId]
-  );
+    const sorted: Track[] = [];
+    const used = new Set<string>();
 
-  const pos = position ?? (maxPos?.max_pos ?? -1) + 1;
-
-  await db.run(
-    `INSERT INTO playlist_tracks (id, playlist_id, track_id, position, added_at)
-     VALUES (?, ?, ?, ?, ?)`,
-    [id, playlistId, trackId, pos, new Date().toISOString()]
-  );
-
-  await updatePlaylistStats(playlistId);
-  logger.info(`Track added to playlist: ${trackId} -> ${playlistId}`);
-
-  return {
-    id,
-    playlist_id: playlistId,
-    track_id: trackId,
-    position: pos,
-    added_at: new Date().toISOString(),
-  };
-}
-
-export async function removeTrackFromPlaylist(
-  playlistId: string,
-  trackId: string
-): Promise<void> {
-  const db = await getDb();
-
-  await db.run(
-    "DELETE FROM playlist_tracks WHERE playlist_id = ? AND track_id = ?",
-    [playlistId, trackId]
-  );
-
-  await updatePlaylistStats(playlistId);
-  logger.info(`Track removed from playlist: ${trackId} <- ${playlistId}`);
-}
-
-export async function reorderPlaylistTracks(
-  playlistId: string,
-  trackOrder: { trackId: string; position: number }[]
-): Promise<void> {
-  const db = await getDb();
-
-  for (const { trackId, position } of trackOrder) {
-    await db.run(
-      "UPDATE playlist_tracks SET position = ? WHERE playlist_id = ? AND track_id = ?",
-      [position, playlistId, trackId]
+    let current = tracks.reduce((min, t) =>
+      (t.energy_level ?? 0) < (min.energy_level ?? 0) ? t : min
     );
-  }
+    sorted.push(current);
+    used.add(current.id);
 
-  logger.info(`Playlist reordered: ${playlistId}`);
-}
+    while (sorted.length < tracks.length) {
+      let bestTrack: Track | null = null;
+      let bestScore = -Infinity;
 
-/**
- * Auto-sort playlist by harmonic compatibility + energy curve
- * Places tracks in optimal order for smooth transitions
- */
-export async function autoOrderPlaylist(playlistId: string): Promise<void> {
-  const db = await getDb();
-  const playlist = await getPlaylist(playlistId);
+      for (const track of tracks) {
+        if (used.has(track.id)) continue;
 
-  if (!playlist?.tracks || playlist.tracks.length === 0) {
-    return;
-  }
+        const keyDistance = calculateKeyDistance(
+          current.key_camelot ?? "8A",
+          track.key_camelot ?? "8A"
+        );
+        const keyScore = Math.max(0, 10 - keyDistance);
+        const bpmDiff = Math.abs((track.bpm ?? 120) - (current.bpm ?? 120));
+        const bpmScore = Math.max(0, 5 - bpmDiff / 10);
+        const energyDiff = (track.energy_level ?? 5) - (current.energy_level ?? 5);
+        const energyScore = Math.max(0, 5 - Math.abs(energyDiff) * 2);
 
-  const tracks = playlist.tracks;
-  const sorted: Track[] = [];
-  const used = new Set<string>();
+        const score = keyScore * 0.5 + bpmScore * 0.3 + energyScore * 0.2;
 
-  // Start with lowest energy track
-  let current = tracks.reduce((min, t) =>
-    (t.energy_level ?? 0) < (min.energy_level ?? 0) ? t : min
-  );
-  sorted.push(current);
-  used.add(current.id);
-
-  // Greedily pick next best track: harmonic compatibility + slight energy increase
-  while (sorted.length < tracks.length) {
-    let bestTrack: Track | null = null;
-    let bestScore = -Infinity;
-
-    for (const track of tracks) {
-      if (used.has(track.id)) continue;
-
-      const keyDistance = calculateKeyDistance(
-        current.key_camelot ?? "8A",
-        track.key_camelot ?? "8A"
-      );
-      const keyScore = Math.max(0, 10 - keyDistance); // 10 for adjacent, 0 for far
-      const bpmDiff = Math.abs((track.bpm ?? 120) - (current.bpm ?? 120));
-      const bpmScore = Math.max(0, 5 - bpmDiff / 10); // Prefer similar BPM
-      const energyDiff = (track.energy_level ?? 5) - (current.energy_level ?? 5);
-      const energyScore = Math.max(0, 5 - Math.abs(energyDiff) * 2); // Slight increase preferred
-
-      const score = keyScore * 0.5 + bpmScore * 0.3 + energyScore * 0.2;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestTrack = track;
+        if (score > bestScore) {
+          bestScore = score;
+          bestTrack = track;
+        }
       }
+
+      if (!bestTrack) break;
+      sorted.push(bestTrack);
+      used.add(bestTrack.id);
+      current = bestTrack;
     }
 
-    if (!bestTrack) break;
-    sorted.push(bestTrack);
-    used.add(bestTrack.id);
-    current = bestTrack;
+    const order = sorted.map((t, i) => ({ trackId: t.id, position: i }));
+    await this.reorderPlaylistTracks(playlistId, order);
   }
 
-  // Update positions
-  const order = sorted.map((t, i) => ({ trackId: t.id, position: i }));
-  await reorderPlaylistTracks(playlistId, order);
-}
-
-async function updatePlaylistStats(playlistId: string): Promise<void> {
-  const db = await getDb();
-
-  const stats = await db.get<{
-    total_tracks: number;
-    total_duration_ms: number;
-  }>(
-    `SELECT COUNT(*) as total_tracks, COALESCE(SUM(t.duration_ms), 0) as total_duration_ms
-     FROM playlist_tracks pt
-     JOIN tracks t ON pt.track_id = t.id
-     WHERE pt.playlist_id = ?`,
-    [playlistId]
-  );
-
-  if (stats) {
-    await db.run(
-      `UPDATE playlists SET total_tracks = ?, total_duration_ms = ?, updated_at = ?
-       WHERE id = ?`,
-      [stats.total_tracks, stats.total_duration_ms, new Date().toISOString(), playlistId]
-    );
+  async deletePlaylist(playlistId: string): Promise<void> {
+    await this.playlistRepository.delete(playlistId);
+    logger.info(`Playlist deleted: ${playlistId}`);
   }
-}
 
-export async function deletePlaylist(playlistId: string): Promise<void> {
-  const db = await getDb();
-  await db.run("DELETE FROM playlists WHERE id = ?", [playlistId]);
-  logger.info(`Playlist deleted: ${playlistId}`);
+  async getAllPlaylists(): Promise<Playlist[]> {
+    return this.playlistRepository.getAll();
+  }
 }

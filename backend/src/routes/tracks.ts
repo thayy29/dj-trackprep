@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
@@ -6,8 +6,10 @@ import { v4 as uuidv4 } from "uuid";
 import { env } from "../env.js";
 import { asyncHandler, AppError } from "../middleware/errorHandler.js";
 import { validateBody } from "../middleware/validation.js";
-import * as trackService from "../services/trackService.js";
-import { logger } from "../logger.js";
+import { getDb } from "../db/database.js";
+import { TrackRepository } from "../repositories/TrackRepository.js";
+import { TrackService } from "../services/trackService.js";
+import { TrackController } from "../controllers/TrackController.js";
 
 const router: Router = Router();
 
@@ -25,6 +27,21 @@ const upload = multer({
   },
 });
 
+// Initialize controller
+let controller: TrackController;
+
+router.use(
+  asyncHandler(async (req, res, next) => {
+    if (!controller) {
+      const db = getDb();
+      const repository = new TrackRepository(db);
+      const service = new TrackService(repository);
+      controller = new TrackController(service);
+    }
+    next();
+  })
+);
+
 // POST /api/tracks/upload - Upload and create new tracks
 router.post(
   "/upload",
@@ -38,22 +55,17 @@ router.post(
     const tracks = [];
 
     for (const file of files) {
-      // Rename file with UUID to avoid collisions
       const ext = path.extname(file.originalname);
       const filename = `${uuidv4()}${ext}`;
       const filePath = path.join(env.UPLOAD_DIR, filename);
 
-      // Move and create track
-      const track = await trackService.createTrack(
-        file.originalname,
-        filePath,
-        file.size
+      const track = await controller.upload(
+        { ...req, file: { filename, path: filePath, size: file.size } } as any,
+        res,
+        (err) => {
+          throw err;
+        }
       );
-
-      // Start analysis in background
-      trackService.analyzeTrack(track.id).catch((err) => {
-        logger.error(`Background analysis failed for ${track.id}:`, err);
-      });
 
       tracks.push(track);
     }
@@ -65,21 +77,16 @@ router.post(
 // GET /api/tracks - List all tracks
 router.get(
   "/",
-  asyncHandler(async (req, res) => {
-    const tracks = await trackService.getTracks();
-    res.json({ tracks });
+  asyncHandler(async (req, res, next) => {
+    controller.getAll(req, res, next);
   })
 );
 
 // GET /api/tracks/:id - Get single track
 router.get(
   "/:id",
-  asyncHandler(async (req, res) => {
-    const track = await trackService.getTrack(req.params.id);
-    if (!track) {
-      throw new AppError(404, "Track not found", "TRACK_NOT_FOUND");
-    }
-    res.json({ track });
+  asyncHandler(async (req, res, next) => {
+    controller.getById(req, res, next);
   })
 );
 
@@ -95,27 +102,16 @@ const updateTrackSchema = z.object({
 router.put(
   "/:id",
   validateBody(updateTrackSchema),
-  asyncHandler(async (req, res) => {
-    const track = await trackService.updateTrackMetadata(req.params.id, req.body);
-    res.json({ track });
+  asyncHandler(async (req, res, next) => {
+    controller.update(req, res, next);
   })
 );
 
 // DELETE /api/tracks/:id - Delete track
 router.delete(
   "/:id",
-  asyncHandler(async (req, res) => {
-    await trackService.deleteTrack(req.params.id);
-    res.status(204).send();
-  })
-);
-
-// POST /api/tracks/:id/reanalyze - Force re-analyze track
-router.post(
-  "/:id/reanalyze",
-  asyncHandler(async (req, res) => {
-    const track = await trackService.analyzeTrack(req.params.id);
-    res.json({ track });
+  asyncHandler(async (req, res, next) => {
+    controller.delete(req, res, next);
   })
 );
 

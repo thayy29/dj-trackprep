@@ -2,9 +2,8 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { env } from "./env.js";
 import { logger } from "./logger.js";
-import { initDb, closeDb } from "./db/db.js";
+import { initializeDatabase, closeDatabase, getDb } from "./db/database.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-import * as convertService from "./services/convertService.js";
 import tracksRouter from "./routes/tracks.js";
 import playlistsRouter from "./routes/playlists.js";
 import convertRouter from "./routes/convert.js";
@@ -42,7 +41,7 @@ app.use(errorHandler);
 // Graceful shutdown
 async function shutdown(): Promise<void> {
   logger.info("Shutting down gracefully...");
-  await closeDb();
+  await closeDatabase();
   process.exit(0);
 }
 
@@ -52,13 +51,8 @@ process.on("SIGINT", shutdown);
 // Start server
 async function start(): Promise<void> {
   try {
-    // Initialize database
-    await initDb();
+    await initializeDatabase();
 
-    // Initialize convert presets
-    await convertService.initializePresets();
-
-    // Start listening
     app.listen(env.PORT, () => {
       logger.info(`Server running on http://localhost:${env.PORT}`);
       logger.info(`Environment: ${env.NODE_ENV}`);

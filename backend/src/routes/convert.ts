@@ -1,30 +1,46 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { z } from "zod";
-import { asyncHandler, AppError } from "../middleware/errorHandler.js";
+import { asyncHandler } from "../middleware/errorHandler.js";
 import { validateBody } from "../middleware/validation.js";
-import * as convertService from "../services/convertService.js";
+import { getDb } from "../db/database.js";
+import { ConvertRepository } from "../repositories/ConvertRepository.js";
+import { ConvertService } from "../services/convertService.js";
+import { ConvertController } from "../controllers/ConvertController.js";
 import { logger } from "../logger.js";
 
 const router: Router = Router();
 
+let controller: ConvertController;
+let convertService: ConvertService;
+
+router.use(
+  asyncHandler(async (req, res, next) => {
+    if (!controller) {
+      const db = getDb();
+      const repository = new ConvertRepository(db);
+      convertService = new ConvertService(repository);
+      controller = new ConvertController(convertService);
+
+      // Initialize presets on first use
+      await convertService.initializePresets();
+    }
+    next();
+  })
+);
+
 // GET /api/convert/presets - List all convert presets
 router.get(
   "/presets",
-  asyncHandler(async (req, res) => {
-    const presets = await convertService.getPresets();
-    res.json({ presets });
+  asyncHandler(async (req, res, next) => {
+    controller.getPresets(req, res, next);
   })
 );
 
 // GET /api/convert/presets/:id - Get single preset
 router.get(
   "/presets/:id",
-  asyncHandler(async (req, res) => {
-    const preset = await convertService.getPreset(req.params.id);
-    if (!preset) {
-      throw new AppError(404, "Preset not found", "PRESET_NOT_FOUND");
-    }
-    res.json({ preset });
+  asyncHandler(async (req, res, next) => {
+    controller.getPreset(req, res, next);
   })
 );
 
@@ -37,52 +53,39 @@ const createExportSchema = z.object({
 router.post(
   "/exports",
   validateBody(createExportSchema),
-  asyncHandler(async (req, res) => {
-    const exportJob = await convertService.createExport(
-      req.body.playlist_id,
-      req.body.preset_id
-    );
+  asyncHandler(async (req, res, next) => {
+    controller.createExport(req, res, next);
 
-    // Start processing in background
-    processExport(exportJob.id).catch((err) => {
-      logger.error(`Export processing failed for ${exportJob.id}:`, err);
-    });
-
-    res.status(201).json({ export: exportJob });
+    // Parse the response to get export ID and start processing
+    const originalJson = res.json.bind(res);
+    res.json = function (body) {
+      if (body.export?.id) {
+        processExport(body.export.id).catch((err) => {
+          logger.error(`Export processing failed for ${body.export.id}:`, err);
+        });
+      }
+      return originalJson(body);
+    };
   })
 );
 
 // GET /api/convert/exports/:id - Get export job status
 router.get(
   "/exports/:id",
-  asyncHandler(async (req, res) => {
-    const exportJob = await convertService.getExport(req.params.id);
-    if (!exportJob) {
-      throw new AppError(404, "Export not found", "EXPORT_NOT_FOUND");
-    }
-    res.json({ export: exportJob });
+  asyncHandler(async (req, res, next) => {
+    controller.getExport(req, res, next);
   })
 );
 
-/**
- * Mock export processing
- * TODO: Implement real audio conversion using ffmpeg
- */
 async function processExport(exportId: string): Promise<void> {
   try {
     const exportJob = await convertService.getExport(exportId);
     if (!exportJob) return;
 
-    // Update to processing
     await convertService.updateExportStatus(exportId, "processing");
-
-    // Simulate processing time
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // TODO: Generate actual ZIP file with converted tracks
     const mockOutputPath = `/exports/${exportId}/playlist.zip`;
-
-    // Mark as completed
     await convertService.updateExportStatus(exportId, "completed", mockOutputPath);
     logger.info(`Export completed: ${exportId}`);
   } catch (error) {
