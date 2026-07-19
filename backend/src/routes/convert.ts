@@ -1,46 +1,47 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { asyncHandler } from "../middleware/errorHandler.js";
+import { asyncHandler, AppError } from "../middleware/errorHandler.js";
 import { validateBody } from "../middleware/validation.js";
 import { getDb } from "../db/database.js";
 import { ConvertRepository } from "../repositories/ConvertRepository.js";
 import { ConvertService } from "../services/convertService.js";
-import { ConvertController } from "../controllers/ConvertController.js";
 import { logger } from "../logger.js";
 
 const router: Router = Router();
 
-let controller: ConvertController;
-let convertService: ConvertService;
-
-router.use(
-  asyncHandler(async (req, res, next) => {
-    if (!controller) {
-      const db = getDb();
-      const repository = new ConvertRepository(db);
-      convertService = new ConvertService(repository);
-      controller = new ConvertController(convertService);
-
-      // Initialize presets on first use
-      await convertService.initializePresets();
-    }
-    next();
-  })
-);
+let presetInitialized = false;
 
 // GET /api/convert/presets - List all convert presets
 router.get(
   "/presets",
-  asyncHandler(async (req, res, next) => {
-    controller.getPresets(req, res, next);
+  asyncHandler(async (req: Request, res: Response) => {
+    const db = getDb();
+    const repository = new ConvertRepository(db);
+    const service = new ConvertService(repository);
+
+    // Initialize presets on first request
+    if (!presetInitialized) {
+      await service.initializePresets();
+      presetInitialized = true;
+    }
+
+    const presets = await service.getPresets();
+    res.json({ presets });
   })
 );
 
 // GET /api/convert/presets/:id - Get single preset
 router.get(
   "/presets/:id",
-  asyncHandler(async (req, res, next) => {
-    controller.getPreset(req, res, next);
+  asyncHandler(async (req: Request, res: Response) => {
+    const db = getDb();
+    const repository = new ConvertRepository(db);
+    const service = new ConvertService(repository);
+    const preset = await service.getPreset(req.params.id);
+    if (!preset) {
+      throw new AppError(404, "Preset not found", "PRESET_NOT_FOUND");
+    }
+    res.json({ preset });
   })
 );
 
@@ -53,44 +54,51 @@ const createExportSchema = z.object({
 router.post(
   "/exports",
   validateBody(createExportSchema),
-  asyncHandler(async (req, res, next) => {
-    controller.createExport(req, res, next);
+  asyncHandler(async (req: Request, res: Response) => {
+    const db = getDb();
+    const repository = new ConvertRepository(db);
+    const service = new ConvertService(repository);
 
-    // Parse the response to get export ID and start processing
-    const originalJson = res.json.bind(res);
-    res.json = function (body) {
-      if (body.export?.id) {
-        processExport(body.export.id).catch((err) => {
-          logger.error(`Export processing failed for ${body.export.id}:`, err);
-        });
-      }
-      return originalJson(body);
-    };
+    const exportJob = await service.createExport(req.body.playlist_id, req.body.preset_id);
+
+    // Start processing in background
+    processExport(service, exportJob.id).catch((err) => {
+      logger.error(`Export processing failed for ${exportJob.id}:`, err);
+    });
+
+    res.status(201).json({ export: exportJob });
   })
 );
 
 // GET /api/convert/exports/:id - Get export job status
 router.get(
   "/exports/:id",
-  asyncHandler(async (req, res, next) => {
-    controller.getExport(req, res, next);
+  asyncHandler(async (req: Request, res: Response) => {
+    const db = getDb();
+    const repository = new ConvertRepository(db);
+    const service = new ConvertService(repository);
+    const exportJob = await service.getExport(req.params.id);
+    if (!exportJob) {
+      throw new AppError(404, "Export not found", "EXPORT_NOT_FOUND");
+    }
+    res.json({ export: exportJob });
   })
 );
 
-async function processExport(exportId: string): Promise<void> {
+async function processExport(service: ConvertService, exportId: string): Promise<void> {
   try {
-    const exportJob = await convertService.getExport(exportId);
+    const exportJob = await service.getExport(exportId);
     if (!exportJob) return;
 
-    await convertService.updateExportStatus(exportId, "processing");
+    await service.updateExportStatus(exportId, "processing");
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const mockOutputPath = `/exports/${exportId}/playlist.zip`;
-    await convertService.updateExportStatus(exportId, "completed", mockOutputPath);
+    await service.updateExportStatus(exportId, "completed", mockOutputPath);
     logger.info(`Export completed: ${exportId}`);
   } catch (error) {
     logger.error(`Export processing error for ${exportId}:`, error);
-    await convertService.updateExportStatus(exportId, "error");
+    await service.updateExportStatus(exportId, "error");
   }
 }
 

@@ -20,7 +20,13 @@ export class TrackService {
       status: "analyzing",
     } as any);
 
-    this.analyzeTrackInBackground(track.id);
+    // Start analysis in background without awaiting
+    setImmediate(() => {
+      this.analyzeTrackInBackground(track.id).catch((err) => {
+        logger.error(`Background analysis failed for ${track.id}:`, err);
+      });
+    });
+
     logger.info(`Track created: ${track.id} - ${title}`);
     return track;
   }

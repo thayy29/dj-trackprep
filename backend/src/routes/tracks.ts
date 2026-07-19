@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import multer from "multer";
 import path from "path";
@@ -9,7 +9,8 @@ import { validateBody } from "../middleware/validation.js";
 import { getDb } from "../db/database.js";
 import { TrackRepository } from "../repositories/TrackRepository.js";
 import { TrackService } from "../services/trackService.js";
-import { TrackController } from "../controllers/TrackController.js";
+import { logger } from "../logger.js";
+import fs from "fs";
 
 const router: Router = Router();
 
@@ -27,46 +28,33 @@ const upload = multer({
   },
 });
 
-// Initialize controller
-let controller: TrackController;
-
-router.use(
-  asyncHandler(async (req, res, next) => {
-    if (!controller) {
-      const db = getDb();
-      const repository = new TrackRepository(db);
-      const service = new TrackService(repository);
-      controller = new TrackController(service);
-    }
-    next();
-  })
-);
-
 // POST /api/tracks/upload - Upload and create new tracks
 router.post(
   "/upload",
   upload.array("files", 50),
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req: Request, res: Response) => {
     if (!req.files || req.files.length === 0) {
       throw new AppError(400, "No files uploaded", "NO_FILES");
     }
 
     const files = req.files as Express.Multer.File[];
+    const db = getDb();
+    const repository = new TrackRepository(db);
+    const service = new TrackService(repository);
+
     const tracks = [];
 
     for (const file of files) {
+      // Rename file with UUID to avoid collisions
       const ext = path.extname(file.originalname);
-      const filename = `${uuidv4()}${ext}`;
-      const filePath = path.join(env.UPLOAD_DIR, filename);
+      const newFilename = `${uuidv4()}${ext}`;
+      const newFilePath = path.join(env.UPLOAD_DIR, newFilename);
 
-      const track = await controller.upload(
-        { ...req, file: { filename, path: filePath, size: file.size } } as any,
-        res,
-        (err) => {
-          throw err;
-        }
-      );
+      // Move file from temp location to permanent location
+      fs.renameSync(file.path, newFilePath);
 
+      // Create track in database
+      const track = await service.createTrack(file.originalname, newFilePath, file.size);
       tracks.push(track);
     }
 
@@ -77,16 +65,27 @@ router.post(
 // GET /api/tracks - List all tracks
 router.get(
   "/",
-  asyncHandler(async (req, res, next) => {
-    controller.getAll(req, res, next);
+  asyncHandler(async (req: Request, res: Response) => {
+    const db = getDb();
+    const repository = new TrackRepository(db);
+    const service = new TrackService(repository);
+    const tracks = await service.getTracks();
+    res.json({ tracks });
   })
 );
 
 // GET /api/tracks/:id - Get single track
 router.get(
   "/:id",
-  asyncHandler(async (req, res, next) => {
-    controller.getById(req, res, next);
+  asyncHandler(async (req: Request, res: Response) => {
+    const db = getDb();
+    const repository = new TrackRepository(db);
+    const service = new TrackService(repository);
+    const track = await service.getTrack(req.params.id);
+    if (!track) {
+      throw new AppError(404, "Track not found", "TRACK_NOT_FOUND");
+    }
+    res.json({ track });
   })
 );
 
@@ -102,16 +101,24 @@ const updateTrackSchema = z.object({
 router.put(
   "/:id",
   validateBody(updateTrackSchema),
-  asyncHandler(async (req, res, next) => {
-    controller.update(req, res, next);
+  asyncHandler(async (req: Request, res: Response) => {
+    const db = getDb();
+    const repository = new TrackRepository(db);
+    const service = new TrackService(repository);
+    const track = await service.updateTrackMetadata(req.params.id, req.body);
+    res.json({ track });
   })
 );
 
 // DELETE /api/tracks/:id - Delete track
 router.delete(
   "/:id",
-  asyncHandler(async (req, res, next) => {
-    controller.delete(req, res, next);
+  asyncHandler(async (req: Request, res: Response) => {
+    const db = getDb();
+    const repository = new TrackRepository(db);
+    const service = new TrackService(repository);
+    await service.deleteTrack(req.params.id);
+    res.status(204).send();
   })
 );
 

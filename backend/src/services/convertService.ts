@@ -35,7 +35,7 @@ export class ConvertService {
         name: "Streaming",
         format: "mp3",
         sample_rate: 44100,
-        bit_depth: null,
+        bit_depth: undefined,
         loudness_lufs: -14,
         description: "Streaming platforms (Spotify, Apple Music) - MP3 320kbps normalized",
       },
