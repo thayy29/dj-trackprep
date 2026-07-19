@@ -58,7 +58,7 @@ async function start(): Promise<void> {
       logger.info(`Environment: ${env.NODE_ENV}`);
     });
   } catch (error) {
-    logger.error("Failed to start server:", error);
+    logger.error({ err: error }, "Failed to start server");
     process.exit(1);
   }
 }

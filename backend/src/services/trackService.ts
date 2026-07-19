@@ -23,7 +23,7 @@ export class TrackService {
     // Start analysis in background without awaiting
     setImmediate(() => {
       this.analyzeTrackInBackground(track.id).catch((err) => {
-        logger.error(`Background analysis failed for ${track.id}:`, err);
+        logger.error({ err }, `Background analysis failed for ${track.id}`);
       });
     });
 
@@ -52,9 +52,26 @@ export class TrackService {
 
       logger.info(`Track analyzed: ${trackId}`);
     } catch (error) {
-      logger.error(`Analysis failed for track ${trackId}:`, error);
+      logger.error({ err: error }, `Analysis failed for track ${trackId}`);
       await this.trackRepository.update(trackId, { status: "error" } as any);
     }
+  }
+
+  async reanalyzeTrack(trackId: string): Promise<Track> {
+    const track = await this.trackRepository.getById(trackId);
+    if (!track) {
+      throw new Error(`Track not found: ${trackId}`);
+    }
+
+    const updated = await this.trackRepository.update(trackId, { status: "analyzing" } as any);
+
+    setImmediate(() => {
+      this.analyzeTrackInBackground(trackId).catch((err) => {
+        logger.error({ err }, `Background analysis failed for ${trackId}`);
+      });
+    });
+
+    return updated;
   }
 
   async getTrack(trackId: string): Promise<Track | null> {

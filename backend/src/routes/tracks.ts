@@ -15,12 +15,16 @@ import fs from "fs";
 const router: Router = Router();
 
 // Configure multer for file uploads
+// MIME sniffing for audio files is unreliable across browsers/OSes
+// (e.g. WAV can be "audio/wav", "audio/x-wav" or "audio/wave"), so we
+// validate by file extension instead.
+const allowedExtensions = /\.(mp3|wav|aiff|aif|flac|m4a)$/i;
+
 const upload = multer({
   dest: env.UPLOAD_DIR,
   limits: { fileSize: env.MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
-    const allowedMimes = ["audio/mpeg", "audio/wav", "audio/aiff", "audio/flac"];
-    if (allowedMimes.includes(file.mimetype)) {
+    if (allowedExtensions.test(file.originalname)) {
       cb(null, true);
     } else {
       cb(new AppError(400, "Invalid file type", "INVALID_FILE_TYPE"));
@@ -119,6 +123,18 @@ router.delete(
     const service = new TrackService(repository);
     await service.deleteTrack(req.params.id);
     res.status(204).send();
+  })
+);
+
+// POST /api/tracks/:id/reanalyze - Force re-analyze track
+router.post(
+  "/:id/reanalyze",
+  asyncHandler(async (req: Request, res: Response) => {
+    const db = getDb();
+    const repository = new TrackRepository(db);
+    const service = new TrackService(repository);
+    const track = await service.reanalyzeTrack(req.params.id);
+    res.json({ track });
   })
 );
 

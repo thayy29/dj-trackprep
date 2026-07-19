@@ -185,7 +185,7 @@ function SectionLabel({ step, children }: { step: number; children: React.ReactN
 function HomeContent() {
   const { tracks, addTracks, removeTrack, updateTrack, reorderTracks, selectedIds, toggleSelection, selectAll, clearSelection, autoOrderPlaylist } =
     usePlaylist();
-  const { analyzeTrack, isAnalyzing } = useAudioAnalysis();
+  const { analyzeTrack, pollTrackStatus, isAnalyzing } = useAudioAnalysis();
   const { draggedItem, dropTarget, handleDragStart, handleDragEnd, handleDragOver, handleDrop } =
     useDragDrop();
   const { createExport, getExport } = useExport();
@@ -197,7 +197,9 @@ function HomeContent() {
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [currentExport, setCurrentExport] = useState<any>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
 
   const selectedCount = selectedIds.size;
   const totalTracks = tracks.length;
@@ -207,40 +209,86 @@ function HomeContent() {
   const bpmMax = Math.max(...bpmValues);
   const bpmRange = `${Math.round(bpmMin)} – ${Math.round(bpmMax)}`;
 
+  const uploadFiles = async (fileArray: File[]) => {
+    setIsUploadModalOpen(true);
+    setUploadedFiles(fileArray.map((f) => ({ name: f.name, progress: 0 })));
+
+    // Feedback visual de progresso enquanto o upload real acontece
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+      currentProgress = Math.min(currentProgress + Math.random() * 25, 90);
+      setUploadedFiles((prev) =>
+        prev.map((f) => ({ ...f, progress: currentProgress }))
+      );
+    }, 300);
+
+    try {
+      const result = await api.uploadTracks(fileArray);
+
+      clearInterval(progressInterval);
+      setUploadedFiles((prev) => prev.map((f) => ({ ...f, progress: 100 })));
+
+      // Adiciona as faixas imediatamente à lista (status "analyzing")
+      addTracks(result.tracks);
+
+      // A análise já foi iniciada em background pelo backend ao criar a
+      // faixa — aqui só acompanhamos o status até virar "analyzed"/"error"
+      result.tracks.forEach((track) => {
+        pollTrackStatus(track.id, (updated) => updateTrack(track.id, updated));
+      });
+
+      setTimeout(() => setIsUploadModalOpen(false), 600);
+    } catch (err) {
+      clearInterval(progressInterval);
+      console.error("Upload failed:", err);
+      setIsUploadModalOpen(false);
+    }
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.currentTarget.files;
-    if (files) {
-      const fileArray = Array.from(files);
-      setIsUploadModalOpen(true);
-      setUploadedFiles(fileArray.map((f) => ({ name: f.name, progress: 0 })));
+    if (files && files.length > 0) {
+      uploadFiles(Array.from(files));
+    }
+    e.currentTarget.value = "";
+  };
 
-      let currentProgress = 0;
-      const interval = setInterval(() => {
-        currentProgress += Math.random() * 40;
-        if (currentProgress >= 100) {
-          currentProgress = 100;
-          clearInterval(interval);
-        }
-        setUploadedFiles((prev) =>
-          prev.map((f) => ({ ...f, progress: Math.min(currentProgress, 100) }))
-        );
-      }, 300);
+  const handleDropZoneDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDraggingFile(true);
+    }
+  };
 
-      setTimeout(async () => {
-        try {
-          const result = await api.uploadTracks(fileArray);
-          addTracks(result.tracks);
+  const handleDropZoneDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
-          // Otimização: limita análise a 3 tracks de uma vez
-          const batchSize = 3;
-          for (let i = 0; i < result.tracks.length; i += batchSize) {
-            const batch = result.tracks.slice(i, i + batchSize);
-            await Promise.all(batch.map((t) => analyzeTrack(t.id)));
-          }
-        } catch (err) {
-          console.error("Upload failed:", err);
-        }
-      }, 2500);
+  const handleDropZoneDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDraggingFile(false);
+    }
+  };
+
+  const handleDropZoneDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDraggingFile(false);
+
+    const audioExtensions = /\.(mp3|wav|aiff|aif|flac|m4a)$/i;
+    const files = Array.from(e.dataTransfer.files).filter(
+      (f) => f.type.startsWith("audio/") || audioExtensions.test(f.name)
+    );
+    if (files.length > 0) {
+      uploadFiles(files);
     }
   };
 
@@ -260,7 +308,7 @@ function HomeContent() {
     if (selectedCount === 0) return;
     const selected = tracks.filter((t) => selectedIds.has(t.id));
     for (const track of selected) {
-      analyzeTrack(track.id);
+      analyzeTrack(track.id, (updated) => updateTrack(track.id, updated));
     }
   };
 
@@ -353,7 +401,17 @@ function HomeContent() {
           <div>
             {/* Step 1: Upload */}
             <SectionLabel step={1}>Enviar músicas</SectionLabel>
-            <div className="bg-background-elevated/50 rounded-xl p-8 mb-6 border border-border-light/50 hover:border-border-light/80 transition-colors">
+            <div
+              onDragEnter={handleDropZoneDragEnter}
+              onDragOver={handleDropZoneDragOver}
+              onDragLeave={handleDropZoneDragLeave}
+              onDrop={handleDropZoneDrop}
+              className={`bg-background-elevated/50 rounded-xl p-8 mb-6 border transition-colors ${
+                isDraggingFile
+                  ? "border-action-primary bg-action-primary/10"
+                  : "border-border-light/50 hover:border-border-light/80"
+              }`}
+            >
               <input
                 ref={fileInputRef}
                 type="file"
@@ -372,7 +430,7 @@ function HomeContent() {
                   </div>
                   <div className="text-center">
                     <div className="text-base font-semibold text-text-high mb-1">
-                      Arraste suas músicas aqui
+                      {isDraggingFile ? "Solte para enviar" : "Arraste suas músicas aqui"}
                     </div>
                     <div className="text-sm text-text-medium mb-3">
                       ou clique para selecionar arquivos MP3, WAV, AIFF

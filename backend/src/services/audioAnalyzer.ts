@@ -69,7 +69,7 @@ export async function analyzeAudio(filePath: string): Promise<AudioAnalysis> {
       waveform_data,
     };
   } catch (error) {
-    logger.error(`Audio analysis failed for ${filePath}:`, error);
+    logger.error({ err: error }, `Audio analysis failed for ${filePath}`);
     throw new Error(`Failed to analyze audio: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

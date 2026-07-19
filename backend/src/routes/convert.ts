@@ -63,7 +63,7 @@ router.post(
 
     // Start processing in background
     processExport(service, exportJob.id).catch((err) => {
-      logger.error(`Export processing failed for ${exportJob.id}:`, err);
+      logger.error({ err }, `Export processing failed for ${exportJob.id}`);
     });
 
     res.status(201).json({ export: exportJob });
@@ -97,7 +97,7 @@ async function processExport(service: ConvertService, exportId: string): Promise
     await service.updateExportStatus(exportId, "completed", mockOutputPath);
     logger.info(`Export completed: ${exportId}`);
   } catch (error) {
-    logger.error(`Export processing error for ${exportId}:`, error);
+    logger.error({ err: error }, `Export processing error for ${exportId}`);
     await service.updateExportStatus(exportId, "error");
   }
 }

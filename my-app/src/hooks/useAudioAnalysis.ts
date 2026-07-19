@@ -1,77 +1,92 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Track } from "../types/index.js";
 import { api, APIError } from "../services/api.js";
 
-interface AnalysisResult {
-  success: boolean;
-  track?: Track;
-  error?: string;
-}
-
-const BATCH_SIZE = 3; // Limita análises simultâneas
 const POLLING_INTERVAL = 1000; // 1 segundo
 
 export function useAudioAnalysis() {
   const [analyzing, setAnalyzing] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const analyzeQueueRef = useRef<string[]>([]);
-  const activeAnalysisRef = useRef<Set<string>>(new Set());
+  const pollersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
 
-  const processQueue = useCallback(async () => {
-    while (
-      analyzeQueueRef.current.length > 0 &&
-      activeAnalysisRef.current.size < BATCH_SIZE
-    ) {
-      const trackId = analyzeQueueRef.current.shift();
-      if (!trackId) break;
-
-      activeAnalysisRef.current.add(trackId);
-
-      // Análise em background sem bloquear
-      api
-        .reanalyzeTrack(trackId)
-        .then(() => {
-          setAnalyzing((prev) => {
-            const next = new Set(prev);
-            next.delete(trackId);
-            return next;
-          });
-        })
-        .catch((err) => {
-          const message = err instanceof APIError ? err.message : "Analysis failed";
-          setError(message);
-          setAnalyzing((prev) => {
-            const next = new Set(prev);
-            next.delete(trackId);
-            return next;
-          });
-        })
-        .finally(() => {
-          activeAnalysisRef.current.delete(trackId);
-          // Processa próximo item da fila
-          setTimeout(processQueue, 100);
-        });
-    }
+  // Limpa todos os pollers ao desmontar
+  useEffect(() => {
+    return () => {
+      pollersRef.current.forEach((interval) => clearInterval(interval));
+      pollersRef.current.clear();
+    };
   }, []);
 
-  const analyzeTrack = useCallback(
-    async (trackId: string): Promise<AnalysisResult> => {
+  const stopPolling = useCallback((trackId: string) => {
+    const interval = pollersRef.current.get(trackId);
+    if (interval) {
+      clearInterval(interval);
+      pollersRef.current.delete(trackId);
+    }
+    setAnalyzing((prev) => {
+      const next = new Set(prev);
+      next.delete(trackId);
+      return next;
+    });
+  }, []);
+
+  /**
+   * Faz polling do status de uma faixa até que a análise termine
+   * (status "analyzed" ou "error"), chamando onUpdate a cada mudança.
+   */
+  const pollTrackStatus = useCallback(
+    (trackId: string, onUpdate: (track: Track) => void) => {
+      if (pollersRef.current.has(trackId)) return;
+
       setAnalyzing((prev) => new Set([...prev, trackId]));
-      setError(null);
 
-      // Adiciona à fila ao invés de processar imediatamente
-      analyzeQueueRef.current.push(trackId);
-      processQueue();
+      const interval = setInterval(async () => {
+        try {
+          const { track } = await api.getTrack(trackId);
+          onUpdate(track);
 
-      return { success: true };
+          if (track.status === "analyzed" || track.status === "error") {
+            stopPolling(trackId);
+          }
+        } catch (err) {
+          const message = err instanceof APIError ? err.message : "Failed to fetch track status";
+          setError(message);
+          stopPolling(trackId);
+        }
+      }, POLLING_INTERVAL);
+
+      pollersRef.current.set(trackId, interval);
     },
-    [processQueue]
+    [stopPolling]
+  );
+
+  /**
+   * Dispara uma (re)análise no backend e acompanha o progresso via polling.
+   */
+  const analyzeTrack = useCallback(
+    async (trackId: string, onUpdate?: (track: Track) => void): Promise<void> => {
+      setError(null);
+      try {
+        const { track } = await api.reanalyzeTrack(trackId);
+        onUpdate?.(track);
+      } catch (err) {
+        const message = err instanceof APIError ? err.message : "Analysis failed";
+        setError(message);
+        return;
+      }
+
+      if (onUpdate) {
+        pollTrackStatus(trackId, onUpdate);
+      }
+    },
+    [pollTrackStatus]
   );
 
   const isAnalyzing = (trackId: string) => analyzing.has(trackId);
 
   return {
     analyzeTrack,
+    pollTrackStatus,
     isAnalyzing,
     analyzing,
     error,
