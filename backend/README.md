@@ -5,7 +5,7 @@ Backend API para TrackPrep — ferramenta profissional de preparação de tracks
 ## Arquitetura
 
 - **Express.js** — servidor HTTP
-- **SQLite** — persistência de dados
+- **PostgreSQL + Knex** — persistência de dados
 - **TypeScript** — type safety
 - **Zod** — validação de schemas
 - **Pino** — logging estruturado
@@ -14,7 +14,8 @@ Backend API para TrackPrep — ferramenta profissional de preparação de tracks
 
 ```
 src/
-├── db/              # Camada de banco de dados
+├── db/              # Conexão, migrations e migration source do Knex
+├── repositories/     # Acesso a dados (uma classe por recurso)
 ├── middleware/      # Express middlewares (auth, validation, error handling)
 ├── routes/          # Rotas da API
 ├── services/        # Lógica de negócio
@@ -26,10 +27,28 @@ src/
 
 ## Setup
 
+### Pré-requisitos
+
+- Node.js 20+
+- PostgreSQL 14+ rodando localmente (ou acessível via rede)
+
 ### Instalação
 
 ```bash
-pnpm install
+npm install
+```
+
+### Banco de dados
+
+Crie o banco e um usuário (ou reutilize um existente com permissão de `CREATEDB`):
+
+```bash
+# Usando o usuário padrão do seu SO (mais simples em dev):
+createdb trackprep
+
+# Ou criando um usuário/role dedicado:
+psql -d postgres -c "CREATE ROLE trackprep WITH LOGIN PASSWORD 'trackprep' CREATEDB;"
+createdb -O trackprep trackprep
 ```
 
 ### Variáveis de ambiente
@@ -40,32 +59,52 @@ Copie `.env.example` para `.env`:
 cp .env.example .env
 ```
 
-Configure conforme necessário:
+Ajuste `DB_USER`/`DB_PASSWORD` para bater com o que você criou acima:
 
 ```env
 NODE_ENV=development
 PORT=3000
-DATABASE_URL=sqlite:./data/trackprep.db
+LOG_LEVEL=debug
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=trackprep
+DB_USER=seu_usuario   # ex: whoami, ou "trackprep" se criou o role acima
+DB_PASSWORD=
+
 UPLOAD_DIR=./uploads
 MAX_FILE_SIZE=104857600
 ENABLE_AUDIO_ANALYSIS=true
 ANALYSIS_WORKERS=2
 ```
 
+> ⚠️ Se `DB_USER`/`DB_NAME` não existirem ou a senha estiver errada, o
+> processo falha ao iniciar (a conexão é testada antes de subir o
+> servidor) e nenhuma rota fica disponível — o log mostrará o erro real
+> do Postgres (ex: `role "postgres" does not exist`).
+
 ### Desenvolvimento
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
-Server rodará em `http://localhost:3000`
+Migrations rodam automaticamente na inicialização. Server rodará em `http://localhost:3000`.
+
+Verifique rapidamente que subiu:
+
+```bash
+curl http://localhost:3000/health
+```
 
 ### Build para produção
 
 ```bash
-pnpm build
-pnpm start
+npm run build
+npm start
 ```
+
+Em produção, defina `DATABASE_URL` (connection string completa) em vez de `DB_HOST`/`DB_USER`/etc.
 
 ## API Endpoints
 

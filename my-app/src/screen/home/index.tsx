@@ -10,7 +10,7 @@ import { ExportModal } from "../../components/modals/ExportModal";
 import { UploadModal } from "../../components/modals/UploadModal";
 import { Waveform } from "../../components/Waveform";
 import { LoadingSpinner, Skeleton, SkeletonWaveform } from "../../components/global";
-import { api } from "../../services/api";
+import { api, APIError } from "../../services/api";
 import { Track } from "../../types/index";
 import {
   IoCloudUpload,
@@ -192,6 +192,7 @@ function HomeContent() {
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<{ name: string; progress: number }[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
@@ -210,6 +211,7 @@ function HomeContent() {
   const bpmRange = `${Math.round(bpmMin)} – ${Math.round(bpmMax)}`;
 
   const uploadFiles = async (fileArray: File[]) => {
+    setUploadError(null);
     setIsUploadModalOpen(true);
     setUploadedFiles(fileArray.map((f) => ({ name: f.name, progress: 0 })));
 
@@ -240,8 +242,12 @@ function HomeContent() {
       setTimeout(() => setIsUploadModalOpen(false), 600);
     } catch (err) {
       clearInterval(progressInterval);
+      const message =
+        err instanceof APIError
+          ? err.message
+          : "Não foi possível conectar ao servidor. Verifique se o backend está rodando.";
       console.error("Upload failed:", err);
-      setIsUploadModalOpen(false);
+      setUploadError(message);
     }
   };
 
@@ -672,6 +678,7 @@ function HomeContent() {
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         uploadedFiles={uploadedFiles}
+        error={uploadError}
       />
       <ConvertModal
         isOpen={isConvertModalOpen}
