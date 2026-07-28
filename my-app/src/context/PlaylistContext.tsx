@@ -39,6 +39,37 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Load draft on mount
+  useEffect(() => {
+    const draft = localStorage.getItem("playlistDraft");
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft) as PlaylistDraft;
+        setPlaylist({
+          id: parsed.id,
+          title: parsed.title,
+          description: parsed.description,
+          total_duration_ms: 0,
+          total_tracks: parsed.trackIds.length,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        // Fetch tracks from server
+        Promise.all(parsed.trackIds.map((id) => api.getTrack(id)))
+          .then((results) => {
+            const loadedTracks = results.map((r) => r.track);
+            setTracks(loadedTracks);
+          })
+          .catch((err) => {
+            console.error("Failed to restore tracks from draft:", err);
+          });
+      } catch (err) {
+        console.error("Failed to parse draft:", err);
+      }
+    }
+  }, []);
+
   const addTracks = useCallback((newTracks: Track[]) => {
     setTracks((prev) => [...prev, ...newTracks]);
   }, []);
@@ -112,13 +143,20 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("playlistDraft", JSON.stringify(draft));
   }, [tracks, playlist]);
 
+  // Auto-save draft when tracks or playlist changes
+  useEffect(() => {
+    if (tracks.length > 0) {
+      saveDraft();
+    }
+  }, [tracks, playlist, saveDraft]);
+
   const loadDraft = useCallback(() => {
+    // This is now called automatically on mount via the useEffect above
     const draft = localStorage.getItem("playlistDraft");
     if (draft) {
       try {
         const parsed = JSON.parse(draft) as PlaylistDraft;
         console.log(`Loaded draft: ${parsed.title} (${parsed.trackIds.length} tracks)`);
-        // Note: Track objects would need to be fetched from server
       } catch (err) {
         console.error("Failed to load draft:", err);
       }
