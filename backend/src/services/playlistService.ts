@@ -33,17 +33,18 @@ export class PlaylistService {
   async reorderPlaylistTracks(
     playlistId: string,
     trackOrder: { trackId: string; position: number }[]
-  ): Promise<void> {
+  ): Promise<Playlist> {
     await this.playlistRepository.reorderTracks(playlistId, trackOrder);
     logger.info(`Playlist reordered: ${playlistId}`);
+    return this.playlistRepository.getById(playlistId) as Promise<Playlist>;
   }
 
-  async autoOrderPlaylist(playlistId: string): Promise<void> {
+  async autoOrderPlaylist(playlistId: string): Promise<Playlist> {
     const playlist = await this.playlistRepository.getById(playlistId);
-    if (!playlist) return;
+    if (!playlist) throw new Error(`Playlist not found: ${playlistId}`);
 
     const tracks = await this.trackRepository.getByPlaylistId(playlistId);
-    if (tracks.length === 0) return;
+    if (tracks.length === 0) return playlist;
 
     const sorted: Track[] = [];
     const used = new Set<string>();
@@ -86,7 +87,7 @@ export class PlaylistService {
     }
 
     const order = sorted.map((t, i) => ({ trackId: t.id, position: i }));
-    await this.reorderPlaylistTracks(playlistId, order);
+    return this.reorderPlaylistTracks(playlistId, order);
   }
 
   async deletePlaylist(playlistId: string): Promise<void> {

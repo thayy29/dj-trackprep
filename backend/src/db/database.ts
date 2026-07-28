@@ -7,7 +7,7 @@ export async function initializeDatabase(): Promise<Knex> {
   if (db) return db;
 
   const environment = process.env.NODE_ENV || "development";
-  const knexConfig = require("../../knexfile.ts")[environment];
+  const knexConfig = (await import("../../knexfile.js")).default[environment];
 
   db = knex(knexConfig);
 
@@ -22,7 +22,7 @@ export async function initializeDatabase(): Promise<Knex> {
 
     return db;
   } catch (error) {
-    logger.error("Failed to initialize database:", error);
+    logger.error({ err: error }, "Failed to initialize database");
     throw error;
   }
 }

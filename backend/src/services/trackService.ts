@@ -87,4 +87,14 @@ export class TrackService {
     logger.info(`Track metadata updated: ${trackId}`);
     return updated;
   }
+
+  async reanalyzeTrack(trackId: string): Promise<void> {
+    const track = await this.trackRepository.getById(trackId);
+    if (!track) {
+      throw new Error(`Track not found: ${trackId}`);
+    }
+
+    await this.trackRepository.update(trackId, { status: "analyzing" } as any);
+    this.analyzeTrackInBackground(trackId);
+  }
 }

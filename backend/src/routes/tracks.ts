@@ -13,13 +13,27 @@ import { TrackController } from "../controllers/TrackController.js";
 
 const router: Router = Router();
 
-// Configure multer for file uploads
+// Configure multer with diskStorage for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, env.UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const filename = `${uuidv4()}${ext}`;
+    cb(null, filename);
+  },
+});
+
 const upload = multer({
-  dest: env.UPLOAD_DIR,
+  storage,
   limits: { fileSize: env.MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = [".mp3", ".wav", ".aiff", ".flac"];
     const allowedMimes = ["audio/mpeg", "audio/wav", "audio/aiff", "audio/flac"];
-    if (allowedMimes.includes(file.mimetype)) {
+
+    if (allowedExts.includes(ext) || allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
       cb(new AppError(400, "Invalid file type", "INVALID_FILE_TYPE"));
@@ -46,7 +60,7 @@ router.use(
 router.post(
   "/upload",
   upload.array("files", 50),
-  asyncHandler(async (req, res) => {
+  asyncHandler(async (req, res, next) => {
     if (!req.files || req.files.length === 0) {
       throw new AppError(400, "No files uploaded", "NO_FILES");
     }
@@ -55,19 +69,17 @@ router.post(
     const tracks = [];
 
     for (const file of files) {
-      const ext = path.extname(file.originalname);
-      const filename = `${uuidv4()}${ext}`;
-      const filePath = path.join(env.UPLOAD_DIR, filename);
+      const trackRes: any = {};
 
-      const track = await controller.upload(
-        { ...req, file: { filename, path: filePath, size: file.size } } as any,
-        res,
-        (err) => {
-          throw err;
-        }
+      await controller.upload(
+        { ...req, file } as any,
+        { json: (data: any) => { Object.assign(trackRes, data); } } as any,
+        (err) => { throw err; }
       );
 
-      tracks.push(track);
+      if (trackRes.track) {
+        tracks.push(trackRes.track);
+      }
     }
 
     res.status(201).json({ tracks });
@@ -87,6 +99,24 @@ router.get(
   "/:id",
   asyncHandler(async (req, res, next) => {
     controller.getById(req, res, next);
+  })
+);
+
+// POST /api/tracks/:id/reanalyze - Re-analyze track
+router.post(
+  "/:id/reanalyze",
+  asyncHandler(async (req, res, next) => {
+    const db = getDb();
+    const repository = new TrackRepository(db);
+    const service = new TrackService(repository);
+
+    const track = await service.getTrack(req.params.id);
+    if (!track) {
+      throw new AppError(404, "Track not found", "NOT_FOUND");
+    }
+
+    service.reanalyzeTrack(req.params.id);
+    res.json({ track });
   })
 );
 
