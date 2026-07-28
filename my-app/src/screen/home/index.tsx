@@ -229,16 +229,24 @@ function HomeContent() {
       setTimeout(async () => {
         try {
           const result = await api.uploadTracks(fileArray);
+          // Add tracks immediately to show in list
           addTracks(result.tracks);
 
-          // Otimização: limita análise a 3 tracks de uma vez
-          const batchSize = 3;
-          for (let i = 0; i < result.tracks.length; i += batchSize) {
-            const batch = result.tracks.slice(i, i + batchSize);
-            await Promise.all(batch.map((t) => analyzeTrack(t.id)));
+          // Close modal after tracks are added (they start as "analyzing")
+          setTimeout(() => {
+            setIsUploadModalOpen(false);
+            setUploadedFiles([]);
+          }, 500);
+
+          // Start analysis polling in background (updates will show automatically)
+          for (const track of result.tracks) {
+            analyzeTrack(track.id, (trackId, analyzedTrack) => {
+              updateTrack(trackId, analyzedTrack);
+            });
           }
         } catch (err) {
           console.error("Upload failed:", err);
+          setIsUploadModalOpen(false);
         }
       }, 2500);
     }
@@ -260,7 +268,9 @@ function HomeContent() {
     if (selectedCount === 0) return;
     const selected = tracks.filter((t) => selectedIds.has(t.id));
     for (const track of selected) {
-      analyzeTrack(track.id);
+      analyzeTrack(track.id, (trackId, analyzedTrack) => {
+        updateTrack(trackId, analyzedTrack);
+      });
     }
   };
 
@@ -513,9 +523,9 @@ function HomeContent() {
                       </button>
 
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{t.title}</div>
+                        <div className="text-sm font-medium truncate">{t.file_name || t.title}</div>
                         <div className="text-xs text-text-low mt-1">
-                          {t.key_camelot || "—"} · {t.bpm || "—"} BPM
+                          {t.key_camelot || "—"} · {t.bpm || "—"} BPM · 🔋 {t.energy_level || "—"}
                         </div>
                       </div>
 

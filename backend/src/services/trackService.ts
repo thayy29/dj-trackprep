@@ -8,14 +8,15 @@ import path from "path";
 export class TrackService {
   constructor(private trackRepository: TrackRepository) {}
 
-  async createTrack(fileName: string, filePath: string, fileSize: number): Promise<Track> {
-    const title = path.parse(fileName).name;
+  async createTrack(fileName: string, filePath: string, fileSize: number, originalName?: string): Promise<Track> {
+    const nameToUse = originalName || fileName;
+    const title = path.parse(nameToUse).name;
 
     const track = await this.trackRepository.create({
       title,
       artist: null,
       file_path: filePath,
-      file_name: fileName,
+      file_name: nameToUse,
       file_size: fileSize,
       status: "analyzing",
     } as any);
@@ -86,5 +87,15 @@ export class TrackService {
     const updated = await this.trackRepository.update(trackId, metadata as any);
     logger.info(`Track metadata updated: ${trackId}`);
     return updated;
+  }
+
+  async reanalyzeTrack(trackId: string): Promise<void> {
+    const track = await this.trackRepository.getById(trackId);
+    if (!track) {
+      throw new Error(`Track not found: ${trackId}`);
+    }
+
+    await this.trackRepository.update(trackId, { status: "analyzing" } as any);
+    this.analyzeTrackInBackground(trackId);
   }
 }

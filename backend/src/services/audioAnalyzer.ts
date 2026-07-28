@@ -83,24 +83,66 @@ function generateMockWaveform(): string {
 }
 
 /**
- * Calculate harmonic compatibility between two keys
- * Returns 0-12, where 0-2 = compatible, 3+ = less compatible
+ * Camelot Wheel: Harmonic mixing compatibility
+ * The wheel has 12 positions (1-12) with two modes each (A/B, minor/major)
+ * Adjacent positions are harmonically compatible
+ *
+ * Order on the wheel (clockwise):
+ * 1A → 12B → 12A → 11B → 11A → 10B → 10A → 9B → 9A → 8B → 8A → 7B →
+ * 7A → 6B → 6A → 5B → 5A → 4B → 4A → 3B → 3A → 2B → 2A → 1B → (back to 1A)
+ */
+
+/**
+ * Calculate harmonic compatibility score between two keys
+ * Returns 0-12, where 0-2 = highly compatible, 3+ = less compatible
  */
 export function calculateKeyDistance(key1: string, key2: string): number {
+  if (!key1 || !key2) return 12; // Invalid keys = incompatible
+
   const extractNum = (k: string) => parseInt(k.slice(0, -1), 10);
   const num1 = extractNum(key1);
   const num2 = extractNum(key2);
-  const distance = Math.abs(num1 - num2);
-  return Math.min(distance, 12 - distance);
+
+  // Distance on number circle (1-12)
+  const numDistance = Math.abs(num1 - num2);
+  const circularDistance = Math.min(numDistance, 12 - numDistance);
+
+  // Same number but different mode is very good (distance 0.5)
+  if (key1.slice(0, -1) === key2.slice(0, -1)) {
+    return 0.5;
+  }
+
+  return circularDistance;
 }
 
 /**
  * Check if two tracks are harmonically compatible
- * Compatible if: same key, adjacent keys, or same number different mode
+ * Compatible if: same key, adjacent keys (±1), or same number different mode
  */
 export function areKeysCompatible(key1: string, key2: string): boolean {
   const distance = calculateKeyDistance(key1, key2);
-  return distance <= 1 || (key1.slice(0, -1) === key2.slice(0, -1)); // Adjacent or same number
+  return distance <= 1; // 0-1 is compatible (includes mode switch)
+}
+
+/**
+ * Get the next best compatible keys on the Camelot wheel
+ * For mixing: after 5A can go to 5B, 6A, 4A, 6B, 4B
+ */
+export function getCompatibleKeys(key: string): string[] {
+  const num = parseInt(key.slice(0, -1), 10);
+  const mode = key.slice(-1);
+  const otherMode = mode === "A" ? "B" : "A";
+
+  // Adjacent numbers and modes
+  const adjacent = [
+    `${num}${otherMode}`, // Same number, different mode (best)
+    `${num + 1 === 13 ? 1 : num + 1}A`, // Next number, mode A
+    `${num + 1 === 13 ? 1 : num + 1}B`, // Next number, mode B
+    `${num - 1 === 0 ? 12 : num - 1}A`, // Previous number, mode A
+    `${num - 1 === 0 ? 12 : num - 1}B`, // Previous number, mode B
+  ];
+
+  return adjacent;
 }
 
 /**

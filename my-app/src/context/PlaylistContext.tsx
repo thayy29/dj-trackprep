@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import { Track, Playlist, PlaylistDraft } from "../types/index.js";
 import { api } from "../services/api.js";
 
@@ -38,6 +38,49 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Load draft on mount and ensure playlist exists
+  useEffect(() => {
+    const draft = localStorage.getItem("playlistDraft");
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft) as PlaylistDraft;
+        setPlaylist({
+          id: parsed.id,
+          title: parsed.title,
+          description: parsed.description,
+          total_duration_ms: 0,
+          total_tracks: parsed.trackIds.length,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+        // Fetch tracks from server
+        Promise.all(parsed.trackIds.map((id) => api.getTrack(id)))
+          .then((results) => {
+            const loadedTracks = results.map((r) => r.track);
+            setTracks(loadedTracks);
+          })
+          .catch((err) => {
+            console.error("Failed to restore tracks from draft:", err);
+          });
+      } catch (err) {
+        console.error("Failed to parse draft:", err);
+      }
+    } else {
+      // Create default playlist if no draft exists
+      const defaultPlaylistId = `playlist-${Date.now()}`;
+      setPlaylist({
+        id: defaultPlaylistId,
+        title: "DJ Set",
+        description: "Harmonic mixing set",
+        total_duration_ms: 0,
+        total_tracks: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }, []);
 
   const addTracks = useCallback((newTracks: Track[]) => {
     setTracks((prev) => [...prev, ...newTracks]);
@@ -83,22 +126,21 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const autoOrderPlaylist = useCallback(async () => {
-    if (!playlist) return;
+    if (tracks.length === 0) return;
     setIsLoading(true);
     setError(null);
     try {
-      const result = await api.autoOrderPlaylist(playlist.id);
-      if (result.playlist.tracks) {
-        setTracks(result.playlist.tracks);
-      }
+      const trackIds = tracks.map((t) => t.id);
+      const result = await api.computeHarmonicOrder(trackIds);
+      setTracks(result.ordered_tracks);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to auto-order playlist"
+        err instanceof Error ? err.message : "Failed to auto-order tracks"
       );
     } finally {
       setIsLoading(false);
     }
-  }, [playlist]);
+  }, [tracks]);
 
   const saveDraft = useCallback(() => {
     if (tracks.length === 0) return;
@@ -112,13 +154,20 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("playlistDraft", JSON.stringify(draft));
   }, [tracks, playlist]);
 
+  // Auto-save draft when tracks or playlist changes
+  useEffect(() => {
+    if (tracks.length > 0) {
+      saveDraft();
+    }
+  }, [tracks, playlist, saveDraft]);
+
   const loadDraft = useCallback(() => {
+    // This is now called automatically on mount via the useEffect above
     const draft = localStorage.getItem("playlistDraft");
     if (draft) {
       try {
         const parsed = JSON.parse(draft) as PlaylistDraft;
         console.log(`Loaded draft: ${parsed.title} (${parsed.trackIds.length} tracks)`);
-        // Note: Track objects would need to be fetched from server
       } catch (err) {
         console.error("Failed to load draft:", err);
       }
@@ -129,28 +178,49 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("playlistDraft");
   }, []);
 
+  const value = useMemo(
+    () => ({
+      tracks,
+      playlist,
+      isLoading,
+      error,
+      addTracks,
+      removeTrack,
+      updateTrack,
+      reorderTracks,
+      setPlaylist,
+      autoOrderPlaylist,
+      selectedIds,
+      toggleSelection,
+      selectAll,
+      clearSelection,
+      saveDraft,
+      loadDraft,
+      clearDraft,
+    }),
+    [
+      tracks,
+      playlist,
+      isLoading,
+      error,
+      addTracks,
+      removeTrack,
+      updateTrack,
+      reorderTracks,
+      setPlaylist,
+      autoOrderPlaylist,
+      selectedIds,
+      toggleSelection,
+      selectAll,
+      clearSelection,
+      saveDraft,
+      loadDraft,
+      clearDraft,
+    ]
+  );
+
   return (
-    <PlaylistContext.Provider
-      value={{
-        tracks,
-        playlist,
-        isLoading,
-        error,
-        addTracks,
-        removeTrack,
-        updateTrack,
-        reorderTracks,
-        setPlaylist,
-        autoOrderPlaylist,
-        selectedIds,
-        toggleSelection,
-        selectAll,
-        clearSelection,
-        saveDraft,
-        loadDraft,
-        clearDraft,
-      }}
-    >
+    <PlaylistContext.Provider value={value}>
       {children}
     </PlaylistContext.Provider>
   );

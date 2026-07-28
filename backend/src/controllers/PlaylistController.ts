@@ -8,12 +8,12 @@ export class PlaylistController {
     try {
       const { title, description } = req.body;
       if (!title) {
-        res.status(400).json({ error: "Title is required" });
+        res.status(400).json({ error: { message: "Title is required", code: "MISSING_TITLE" } });
         return;
       }
 
       const playlist = await this.playlistService.createPlaylist(title, description);
-      res.status(201).json(playlist);
+      res.status(201).json({ playlist });
     } catch (error) {
       next(error);
     }
@@ -22,7 +22,7 @@ export class PlaylistController {
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const playlists = await this.playlistService.getAllPlaylists();
-      res.json(playlists);
+      res.json({ playlists });
     } catch (error) {
       next(error);
     }
@@ -32,10 +32,10 @@ export class PlaylistController {
     try {
       const playlist = await this.playlistService.getPlaylist(req.params.id);
       if (!playlist) {
-        res.status(404).json({ error: "Playlist not found" });
+        res.status(404).json({ error: { message: "Playlist not found", code: "NOT_FOUND" } });
         return;
       }
-      res.json(playlist);
+      res.json({ playlist });
     } catch (error) {
       next(error);
     }
@@ -43,9 +43,10 @@ export class PlaylistController {
 
   async addTrack(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { trackId, position } = req.body;
+      const trackId = req.body.trackId || req.body.track_id;
+      const position = req.body.position;
       if (!trackId) {
-        res.status(400).json({ error: "Track ID is required" });
+        res.status(400).json({ error: { message: "Track ID is required", code: "MISSING_TRACK_ID" } });
         return;
       }
 
@@ -58,9 +59,9 @@ export class PlaylistController {
 
   async removeTrack(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { trackId } = req.body;
+      const trackId = req.body.trackId || req.body.track_id;
       if (!trackId) {
-        res.status(400).json({ error: "Track ID is required" });
+        res.status(400).json({ error: { message: "Track ID is required", code: "MISSING_TRACK_ID" } });
         return;
       }
 
@@ -75,12 +76,12 @@ export class PlaylistController {
     try {
       const { trackOrder } = req.body;
       if (!trackOrder || !Array.isArray(trackOrder)) {
-        res.status(400).json({ error: "Track order array is required" });
+        res.status(400).json({ error: { message: "Track order array is required", code: "INVALID_TRACK_ORDER" } });
         return;
       }
 
-      await this.playlistService.reorderPlaylistTracks(req.params.id, trackOrder);
-      res.json({ success: true });
+      const playlist = await this.playlistService.reorderPlaylistTracks(req.params.id, trackOrder);
+      res.json({ playlist });
     } catch (error) {
       next(error);
     }
@@ -88,8 +89,8 @@ export class PlaylistController {
 
   async autoOrder(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      await this.playlistService.autoOrderPlaylist(req.params.id);
-      res.json({ success: true });
+      const playlist = await this.playlistService.autoOrderPlaylist(req.params.id);
+      res.json({ playlist });
     } catch (error) {
       next(error);
     }

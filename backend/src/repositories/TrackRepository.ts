@@ -33,10 +33,7 @@ export class TrackRepository {
   }
 
   async update(id: string, data: Partial<Track>): Promise<Track> {
-    await this.db("tracks").where({ id }).update({
-      ...data,
-      updated_at: new Date().toISOString(),
-    });
+    await this.db("tracks").where({ id }).update(data);
     return this.getById(id) as Promise<Track>;
   }
 
