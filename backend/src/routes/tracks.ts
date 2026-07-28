@@ -65,21 +65,15 @@ router.post(
       throw new AppError(400, "No files uploaded", "NO_FILES");
     }
 
+    const db = getDb();
+    const repository = new TrackRepository(db);
+    const service = new TrackService(repository);
     const files = req.files as Express.Multer.File[];
     const tracks = [];
 
     for (const file of files) {
-      const trackRes: any = {};
-
-      await controller.upload(
-        { ...req, file } as any,
-        { json: (data: any) => { Object.assign(trackRes, data); } } as any,
-        (err) => { throw err; }
-      );
-
-      if (trackRes.track) {
-        tracks.push(trackRes.track);
-      }
+      const track = await service.createTrack(file.filename, file.path, file.size);
+      tracks.push(track);
     }
 
     res.status(201).json({ tracks });

@@ -19,7 +19,7 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ): void {
-  logger.error({ error: err, url: req.url, method: req.method }, "Request error");
+  logger.error({ err, url: req.url, method: req.method }, "Request error");
 
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
