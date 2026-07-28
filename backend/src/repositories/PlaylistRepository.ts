@@ -25,6 +25,19 @@ export class PlaylistRepository {
     return playlist || null;
   }
 
+  async getByIdWithTracks(id: string): Promise<(Playlist & { tracks: any[] }) | null> {
+    const playlist = await this.getById(id);
+    if (!playlist) return null;
+
+    const tracks = await this.db("tracks")
+      .join("playlist_tracks", "tracks.id", "playlist_tracks.track_id")
+      .where("playlist_tracks.playlist_id", id)
+      .orderBy("playlist_tracks.position", "asc")
+      .select("tracks.*");
+
+    return { ...playlist, tracks };
+  }
+
   async getAll(): Promise<Playlist[]> {
     return this.db("playlists").orderBy("created_at", "desc");
   }

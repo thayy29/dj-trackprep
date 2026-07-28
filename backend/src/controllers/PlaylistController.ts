@@ -43,7 +43,8 @@ export class PlaylistController {
 
   async addTrack(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { trackId, position } = req.body;
+      const trackId = req.body.trackId || req.body.track_id;
+      const position = req.body.position;
       if (!trackId) {
         res.status(400).json({ error: { message: "Track ID is required", code: "MISSING_TRACK_ID" } });
         return;
@@ -58,7 +59,7 @@ export class PlaylistController {
 
   async removeTrack(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { trackId } = req.body;
+      const trackId = req.body.trackId || req.body.track_id;
       if (!trackId) {
         res.status(400).json({ error: { message: "Track ID is required", code: "MISSING_TRACK_ID" } });
         return;

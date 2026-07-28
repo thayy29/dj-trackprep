@@ -514,9 +514,9 @@ function HomeContent() {
                       </button>
 
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{t.title}</div>
+                        <div className="text-sm font-medium truncate">{t.file_name || t.title}</div>
                         <div className="text-xs text-text-low mt-1">
-                          {t.key_camelot || "—"} · {t.bpm || "—"} BPM
+                          {t.key_camelot || "—"} · {t.bpm || "—"} BPM · 🔋 {t.energy_level || "—"}
                         </div>
                       </div>
 
