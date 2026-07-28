@@ -231,11 +231,10 @@ function HomeContent() {
           const result = await api.uploadTracks(fileArray);
           addTracks(result.tracks);
 
-          // Otimização: limita análise a 3 tracks de uma vez
-          const batchSize = 3;
-          for (let i = 0; i < result.tracks.length; i += batchSize) {
-            const batch = result.tracks.slice(i, i + batchSize);
-            await Promise.all(batch.map((t) => analyzeTrack(t.id)));
+          for (const track of result.tracks) {
+            analyzeTrack(track.id, (trackId, analyzedTrack) => {
+              updateTrack(trackId, analyzedTrack);
+            });
           }
         } catch (err) {
           console.error("Upload failed:", err);
@@ -260,7 +259,9 @@ function HomeContent() {
     if (selectedCount === 0) return;
     const selected = tracks.filter((t) => selectedIds.has(t.id));
     for (const track of selected) {
-      analyzeTrack(track.id);
+      analyzeTrack(track.id, (trackId, analyzedTrack) => {
+        updateTrack(trackId, analyzedTrack);
+      });
     }
   };
 
