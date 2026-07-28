@@ -229,8 +229,16 @@ function HomeContent() {
       setTimeout(async () => {
         try {
           const result = await api.uploadTracks(fileArray);
+          // Add tracks immediately to show in list
           addTracks(result.tracks);
 
+          // Close modal after tracks are added (they start as "analyzing")
+          setTimeout(() => {
+            setIsUploadModalOpen(false);
+            setUploadedFiles([]);
+          }, 500);
+
+          // Start analysis polling in background (updates will show automatically)
           for (const track of result.tracks) {
             analyzeTrack(track.id, (trackId, analyzedTrack) => {
               updateTrack(trackId, analyzedTrack);
@@ -238,6 +246,7 @@ function HomeContent() {
           }
         } catch (err) {
           console.error("Upload failed:", err);
+          setIsUploadModalOpen(false);
         }
       }, 2500);
     }

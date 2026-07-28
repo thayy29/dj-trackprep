@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from "react";
 import { Track, Playlist, PlaylistDraft } from "../types/index.js";
 import { api } from "../services/api.js";
 
@@ -167,28 +167,49 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("playlistDraft");
   }, []);
 
+  const value = useMemo(
+    () => ({
+      tracks,
+      playlist,
+      isLoading,
+      error,
+      addTracks,
+      removeTrack,
+      updateTrack,
+      reorderTracks,
+      setPlaylist,
+      autoOrderPlaylist,
+      selectedIds,
+      toggleSelection,
+      selectAll,
+      clearSelection,
+      saveDraft,
+      loadDraft,
+      clearDraft,
+    }),
+    [
+      tracks,
+      playlist,
+      isLoading,
+      error,
+      addTracks,
+      removeTrack,
+      updateTrack,
+      reorderTracks,
+      setPlaylist,
+      autoOrderPlaylist,
+      selectedIds,
+      toggleSelection,
+      selectAll,
+      clearSelection,
+      saveDraft,
+      loadDraft,
+      clearDraft,
+    ]
+  );
+
   return (
-    <PlaylistContext.Provider
-      value={{
-        tracks,
-        playlist,
-        isLoading,
-        error,
-        addTracks,
-        removeTrack,
-        updateTrack,
-        reorderTracks,
-        setPlaylist,
-        autoOrderPlaylist,
-        selectedIds,
-        toggleSelection,
-        selectAll,
-        clearSelection,
-        saveDraft,
-        loadDraft,
-        clearDraft,
-      }}
-    >
+    <PlaylistContext.Provider value={value}>
       {children}
     </PlaylistContext.Provider>
   );
