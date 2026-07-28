@@ -55,20 +55,38 @@ export function useAudioAnalysis() {
       const { trackId, onAnalyzed } = item;
       activeAnalysisRef.current.add(trackId);
 
-      api
-        .reanalyzeTrack(trackId)
-        .then(async () => {
-          const analyzedTrack = await pollTrackStatus(trackId);
-          if (analyzedTrack && onAnalyzed) {
-            onAnalyzed(analyzedTrack);
+      // For newly uploaded tracks: poll for analysis completion
+      // For existing tracks: call reanalyze
+      // Both will eventually call pollTrackStatus to wait for completion
+      (async () => {
+        try {
+          // Try to get current status first
+          const currentTrack = await api.getTrack(trackId);
+
+          // If analyzing, poll for completion
+          if (currentTrack.track.status === "analyzing") {
+            const analyzedTrack = await pollTrackStatus(trackId);
+            if (analyzedTrack && onAnalyzed) {
+              onAnalyzed(analyzedTrack);
+            }
+          } else if (currentTrack.track.status === "analyzed" && onAnalyzed) {
+            // Already analyzed, call callback immediately
+            onAnalyzed(currentTrack.track);
+          } else if (currentTrack.track.status === "error") {
+            // If errored, trigger reanalyze
+            await api.reanalyzeTrack(trackId);
+            const analyzedTrack = await pollTrackStatus(trackId);
+            if (analyzedTrack && onAnalyzed) {
+              onAnalyzed(analyzedTrack);
+            }
           }
+
           setAnalyzing((prev) => {
             const next = new Set(prev);
             next.delete(trackId);
             return next;
           });
-        })
-        .catch((err) => {
+        } catch (err) {
           const message = err instanceof APIError ? err.message : "Analysis failed";
           setError(message);
           setAnalyzing((prev) => {
@@ -76,10 +94,10 @@ export function useAudioAnalysis() {
             next.delete(trackId);
             return next;
           });
-        })
-        .finally(() => {
+        } finally {
           activeAnalysisRef.current.delete(trackId);
-        });
+        }
+      })();
     }
 
     processingRef.current = false;
