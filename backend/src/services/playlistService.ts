@@ -40,12 +40,8 @@ export class PlaylistService {
     return playlistWithTracks as Playlist;
   }
 
-  async autoOrderPlaylist(playlistId: string): Promise<Playlist> {
-    const playlistWithTracks = await this.playlistRepository.getByIdWithTracks(playlistId);
-    if (!playlistWithTracks) throw new Error(`Playlist not found: ${playlistId}`);
-
-    const tracks = await this.trackRepository.getByPlaylistId(playlistId);
-    if (tracks.length === 0) return playlistWithTracks;
+  async computeHarmonicOrder(tracks: Track[]): Promise<Track[]> {
+    if (tracks.length === 0) return [];
 
     const sorted: Track[] = [];
     const used = new Set<string>();
@@ -70,17 +66,14 @@ export class PlaylistService {
           current.key_camelot ?? "8A",
           track.key_camelot ?? "8A"
         );
-        // Score: 0 distance = 10, 0.5 = 9, 1 = 8, 2 = 6, 3+ = 0
         const keyScore = Math.max(0, 10 - keyDistance * 5);
 
         // BPM COMPATIBILITY (25% weight) - beatmatching requirement
         const bpmDiff = Math.abs((track.bpm ?? 120) - (current.bpm ?? 120));
-        // Score: 0 diff = 5, 10 diff = 4, 20 diff = 3, 30+ = 0
         const bpmScore = Math.max(0, 5 - bpmDiff / 10);
 
         // ENERGY PROGRESSION (15% weight) - smooth energy buildup
         const energyDiff = (track.energy_level ?? 5) - (current.energy_level ?? 5);
-        // Prefer slight energy increase (0-2 points)
         const energyScore = energyDiff >= 0 && energyDiff <= 2 ? 5 : Math.max(0, 3 - Math.abs(energyDiff));
 
         // Weighted score: harmonic (60%) + tempo (25%) + energy (15%)
@@ -92,7 +85,6 @@ export class PlaylistService {
         }
       }
 
-      // If no compatible track found, just pick any remaining (shouldn't happen)
       if (!bestTrack) {
         bestTrack = tracks.find((t) => !used.has(t.id)) ?? null;
       }
@@ -104,6 +96,17 @@ export class PlaylistService {
       current = bestTrack;
     }
 
+    return sorted;
+  }
+
+  async autoOrderPlaylist(playlistId: string): Promise<Playlist> {
+    const playlistWithTracks = await this.playlistRepository.getByIdWithTracks(playlistId);
+    if (!playlistWithTracks) throw new Error(`Playlist not found: ${playlistId}`);
+
+    const tracks = await this.trackRepository.getByPlaylistId(playlistId);
+    if (tracks.length === 0) return playlistWithTracks;
+
+    const sorted = await this.computeHarmonicOrder(tracks);
     const order = sorted.map((t, i) => ({ trackId: t.id, position: i }));
     return this.reorderPlaylistTracks(playlistId, order);
   }

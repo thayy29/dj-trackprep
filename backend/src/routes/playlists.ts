@@ -97,6 +97,35 @@ router.post(
   })
 );
 
+// POST /api/playlists/compute-order - Compute harmonic order for track IDs
+const computeOrderSchema = z.object({
+  track_ids: z.array(z.string().uuid()),
+});
+
+router.post(
+  "/compute-order",
+  validateBody(computeOrderSchema),
+  asyncHandler(async (req, res, next) => {
+    const db = getDb();
+    const trackRepository = new TrackRepository(db);
+    const tracks = await Promise.all(
+      req.body.track_ids.map((id: string) => trackRepository.getById(id))
+    );
+
+    const validTracks = tracks.filter((t) => t !== null);
+    if (validTracks.length === 0) {
+      throw new AppError(400, "No valid tracks found", "NO_VALID_TRACKS");
+    }
+
+    const playlistService = new PlaylistService(
+      new PlaylistRepository(db),
+      trackRepository
+    );
+    const ordered = await playlistService.computeHarmonicOrder(validTracks);
+    res.json({ ordered_tracks: ordered });
+  })
+);
+
 // DELETE /api/playlists/:id - Delete playlist
 router.delete(
   "/:id",

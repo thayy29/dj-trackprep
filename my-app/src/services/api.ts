@@ -130,6 +130,10 @@ export const api = {
     return request("POST", `/playlists/${playlistId}/auto-order`);
   },
 
+  async computeHarmonicOrder(trackIds: string[]): Promise<{ ordered_tracks: Track[] }> {
+    return request("POST", `/playlists/compute-order`, { track_ids: trackIds });
+  },
+
   async deletePlaylist(id: string): Promise<void> {
     await request("DELETE", `/playlists/${id}`);
   },

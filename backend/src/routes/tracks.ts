@@ -72,7 +72,7 @@ router.post(
     const tracks = [];
 
     for (const file of files) {
-      const track = await service.createTrack(file.filename, file.path, file.size);
+      const track = await service.createTrack(file.filename, file.path, file.size, file.originalname);
       tracks.push(track);
     }
 

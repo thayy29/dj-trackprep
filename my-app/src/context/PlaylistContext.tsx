@@ -39,7 +39,7 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Load draft on mount
+  // Load draft on mount and ensure playlist exists
   useEffect(() => {
     const draft = localStorage.getItem("playlistDraft");
     if (draft) {
@@ -67,6 +67,18 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
       } catch (err) {
         console.error("Failed to parse draft:", err);
       }
+    } else {
+      // Create default playlist if no draft exists
+      const defaultPlaylistId = `playlist-${Date.now()}`;
+      setPlaylist({
+        id: defaultPlaylistId,
+        title: "DJ Set",
+        description: "Harmonic mixing set",
+        total_duration_ms: 0,
+        total_tracks: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
     }
   }, []);
 
@@ -114,22 +126,21 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const autoOrderPlaylist = useCallback(async () => {
-    if (!playlist) return;
+    if (tracks.length === 0) return;
     setIsLoading(true);
     setError(null);
     try {
-      const result = await api.autoOrderPlaylist(playlist.id);
-      if (result.playlist.tracks) {
-        setTracks(result.playlist.tracks);
-      }
+      const trackIds = tracks.map((t) => t.id);
+      const result = await api.computeHarmonicOrder(trackIds);
+      setTracks(result.ordered_tracks);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Failed to auto-order playlist"
+        err instanceof Error ? err.message : "Failed to auto-order tracks"
       );
     } finally {
       setIsLoading(false);
     }
-  }, [playlist]);
+  }, [tracks]);
 
   const saveDraft = useCallback(() => {
     if (tracks.length === 0) return;
