@@ -56,14 +56,15 @@ export function corsConfig() {
 /**
  * Rate limiting middleware
  * Limits requests to prevent abuse
+ * Increased limits for development/drag-drop operations
  */
 export const rateLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 100, // Max 100 requests per windowMs
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 300, // Max 300 requests per minute (5 req/sec) - generous for active UI operations
   standardHeaders: true, // Return rate limit info in RateLimit-* headers
   legacyHeaders: false, // Disable X-RateLimit-* headers
   skip: (req) => {
-    // Don't rate limit health check
+    // Don't rate limit health check and local/drag-drop operations
     return req.path === "/health";
   },
   message: "Too many requests, please try again later",
@@ -79,10 +80,11 @@ export const rateLimiter = rateLimit({
 
 /**
  * Strict rate limit for upload endpoints (higher sensitivity)
+ * Increased for better UX with multiple file uploads
  */
 export const uploadRateLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 25, // Max 25 uploads per windowMs
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 100, // Max 100 uploads per minute (our limit is 5 per upload anyway)
   skip: (req) => {
     // Only rate limit POST /api/tracks/upload
     return !req.path.includes("/upload");

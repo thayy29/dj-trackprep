@@ -1,7 +1,7 @@
 import { ConvertRepository } from "../repositories/ConvertRepository";
 import { ConvertPreset, Export } from "../types/index";
 import { logger } from "../logger";
-import archiver from "archiver";
+import * as archiver from "archiver";
 import fs from "fs";
 import path from "path";
 import { createWriteStream } from "fs";

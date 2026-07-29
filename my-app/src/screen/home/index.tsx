@@ -128,46 +128,116 @@ function EnergyDots({ level }: { level: number }) {
   );
 }
 
-function CamelotWheel() {
+interface CamelotWheelProps {
+  activeTracks: string[];
+  selectedKey: string | null;
+  onSelectKey: (key: string) => void;
+}
+
+function CamelotWheel({ activeTracks, selectedKey, onSelectKey }: CamelotWheelProps) {
+  // Camelot wheel positions (key, x, y, label)
   const keys = [
-    ["1A", 100, 18, "text-text-low"],
-    ["2A", 145, 30, "text-text-low"],
-    ["3A", 177, 62, "text-text-low"],
-    ["4A", 188, 107, "text-text-low"],
-    ["5A", 177, 150, "text-text-low"],
-    ["6A", 145, 182, "fill-cyan-400"],
-    ["7A", 100, 195, "fill-cyan-400"],
-    ["8A", 55, 182, "fill-green-400 font-bold"],
-    ["9A", 23, 150, "fill-cyan-400"],
-    ["10A", 12, 107, "text-text-low"],
-    ["11A", 23, 62, "text-text-low"],
-    ["12A", 55, 30, "text-text-low"],
+    ["1A", 100, 18],
+    ["2A", 145, 30],
+    ["3A", 177, 62],
+    ["4A", 188, 107],
+    ["5A", 177, 150],
+    ["6A", 145, 182],
+    ["7A", 100, 195],
+    ["8A", 55, 182],
+    ["9A", 23, 150],
+    ["10A", 12, 107],
+    ["11A", 23, 62],
+    ["12A", 55, 30],
   ] as const;
+
+  // Harmonic neighbors for each key
+  const harmonicNeighbors: Record<string, string[]> = {
+    "1A": ["12A", "2A"],
+    "2A": ["1A", "3A"],
+    "3A": ["2A", "4A"],
+    "4A": ["3A", "5A"],
+    "5A": ["4A", "6A"],
+    "6A": ["5A", "7A"],
+    "7A": ["6A", "8A"],
+    "8A": ["7A", "9A"],
+    "9A": ["8A", "10A"],
+    "10A": ["9A", "11A"],
+    "11A": ["10A", "12A"],
+    "12A": ["11A", "1A"],
+  };
+
+  const getKeyColor = (key: string) => {
+    if (key === selectedKey) return "#7A3EFF"; // Purple - selected
+    if (activeTracks.includes(key)) return "#1DB954"; // Green - in playlist
+    if (selectedKey && harmonicNeighbors[selectedKey]?.includes(key)) return "#22d3ee"; // Cyan - compatible
+    return "#6A6A6A"; // Gray - inactive
+  };
+
+  const getKeySize = (key: string) => {
+    if (key === selectedKey) return 12;
+    if (activeTracks.includes(key)) return 11;
+    return 10;
+  };
+
   return (
-    <svg viewBox="0 0 200 200" className="w-full aspect-square">
-      <circle cx="100" cy="100" r="88" fill="none" stroke="#282828" strokeWidth="1" />
-      <g fontSize="10" textAnchor="middle" fontFamily="SF Mono, monospace" fill="#6A6A6A" dominantBaseline="middle">
-        {keys.map(([k, x, y, cls]) => (
-          <text
-            key={k as string}
-            x={x as number}
-            y={y as number}
-            className={cls as string}
-            fill={
-              (cls as string).includes("cyan")
-                ? "#22d3ee"
-                : (cls as string).includes("green")
-                ? "#1DB954"
-                : undefined
-            }
-            fontWeight={(cls as string).includes("bold") ? 700 : 400}
-          >
-            {k}
-          </text>
-        ))}
-      </g>
-      <circle cx="55" cy="175" r="11" fill="none" stroke="#1DB954" strokeWidth="1.5" />
-    </svg>
+    <div className="flex flex-col items-center gap-3">
+      <svg viewBox="0 0 200 200" className="w-full max-w-[180px] aspect-square cursor-pointer">
+        {/* Outer circle */}
+        <circle cx="100" cy="100" r="88" fill="none" stroke="#3A3A3A" strokeWidth="1" />
+
+        {/* Keys */}
+        <g fontSize="10" textAnchor="middle" fontFamily="SF Mono, monospace" dominantBaseline="middle">
+          {keys.map(([k, x, y]) => (
+            <g key={k as string} onClick={() => onSelectKey(k as string)}>
+              {/* Highlight circle for active/selected */}
+              {(k === selectedKey || activeTracks.includes(k as string)) && (
+                <circle
+                  cx={x as number}
+                  cy={y as number}
+                  r={getKeySize(k as string) + 4}
+                  fill={getKeyColor(k as string)}
+                  opacity="0.2"
+                />
+              )}
+              {/* Key text */}
+              <text
+                x={x as number}
+                y={y as number}
+                fill={getKeyColor(k as string)}
+                fontWeight={k === selectedKey || activeTracks.includes(k as string) ? 700 : 400}
+                className="hover:opacity-100 opacity-80 transition-opacity"
+              >
+                {k}
+              </text>
+            </g>
+          ))}
+        </g>
+
+        {/* Inner circle */}
+        <circle cx="100" cy="100" r="40" fill="none" stroke="#3A3A3A" strokeWidth="1" opacity="0.5" />
+      </svg>
+
+      {/* Legend */}
+      <div className="grid grid-cols-2 gap-2 text-[10px] w-full mt-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-action-primary" />
+          <span className="text-text-low">Seu set</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#7A3EFF" }} />
+          <span className="text-text-low">Selecionado</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-cyan-400" />
+          <span className="text-text-low">Compatível</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-text-low" />
+          <span className="text-text-low">Disponível</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -181,6 +251,8 @@ function SectionLabel({ step, children }: { step: number; children: React.ReactN
     </div>
   );
 }
+
+const MAX_TRACKS_PER_UPLOAD = 5; // Limit to prevent rendering issues
 
 function HomeContent() {
   const { tracks, addTracks, removeTrack, updateTrack, reorderTracks, selectedIds, toggleSelection, selectAll, clearSelection, autoOrderPlaylist } =
@@ -197,10 +269,25 @@ function HomeContent() {
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [currentExport, setCurrentExport] = useState<any>(null);
+  const [selectedCamelotKey, setSelectedCamelotKey] = useState<string | null>(null);
+  const [suggestedNextTrack, setSuggestedNextTrack] = useState<any>(null);
+  const [suggestedLoading, setSuggestedLoading] = useState(false);
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [manualReorderInProgress, setManualReorderInProgress] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadProcessingRef = useRef(false); // Prevent concurrent uploads
 
   const selectedCount = selectedIds.size;
   const totalTracks = tracks.length;
+
+  // Calculate total duration
+  const totalDurationMs = tracks.reduce((sum, track) => sum + (track.duration_ms || 0), 0);
+  const hours = Math.floor(totalDurationMs / 3600000);
+  const minutes = Math.floor((totalDurationMs % 3600000) / 60000);
+  const seconds = Math.floor((totalDurationMs % 60000) / 1000);
+  const formattedDuration = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   const bpmValues = tracks.map((t) => t.bpm || 120).filter(Boolean);
   const bpmMin = Math.min(...bpmValues);
@@ -209,61 +296,100 @@ function HomeContent() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.currentTarget.files;
-    if (files) {
-      const fileArray = Array.from(files);
-      setIsUploadModalOpen(true);
-      setUploadedFiles(fileArray.map((f) => ({ name: f.name, progress: 0 })));
+    if (!files || uploadProcessingRef.current) return;
 
-      let currentProgress = 0;
-      const interval = setInterval(() => {
-        currentProgress += Math.random() * 40;
-        if (currentProgress >= 100) {
-          currentProgress = 100;
-          clearInterval(interval);
-        }
-        setUploadedFiles((prev) =>
-          prev.map((f) => ({ ...f, progress: Math.min(currentProgress, 100) }))
-        );
-      }, 300);
+    const fileArray = Array.from(files);
 
-      setTimeout(async () => {
-        try {
-          const result = await api.uploadTracks(fileArray);
-
-          // Verify API response has tracks
-          if (!result.tracks || result.tracks.length === 0) {
-            console.error("[Upload] API returned empty tracks array");
-            setIsUploadModalOpen(false);
-            return;
-          }
-
-          console.log(`[Upload] Got ${result.tracks.length} tracks from API`);
-
-          // Add tracks immediately to show in list (BEFORE modal closes)
-          addTracks(result.tracks);
-          console.log(`[Upload] addTracks called with ${result.tracks.length} tracks`);
-
-          // Close modal after tracks are added and processed
-          setTimeout(() => {
-            setIsUploadModalOpen(false);
-            setUploadedFiles([]);
-            console.log("[Upload] Modal closed");
-          }, 800);
-
-          // Start analysis polling in background (updates will show automatically)
-          result.tracks.forEach((track) => {
-            console.log(`[Upload] Starting analysis for track ${track.id}`);
-            analyzeTrack(track.id, (trackId, analyzedTrack) => {
-              console.log(`[Upload] Track ${trackId} analyzed, updating...`);
-              updateTrack(trackId, analyzedTrack);
-            });
-          });
-        } catch (err) {
-          console.error("[Upload] Upload failed:", err);
-          setIsUploadModalOpen(false);
-        }
-      }, 2500);
+    // CRITICAL FIX: Check max files limit
+    if (fileArray.length > MAX_TRACKS_PER_UPLOAD) {
+      setUploadError(`⚠️ Máximo ${MAX_TRACKS_PER_UPLOAD} faixas por vez. Você selecionou ${fileArray.length}. Por favor, selecione menos arquivos.`);
+      setTimeout(() => setUploadError(null), 8000);
+      // Reset input
+      e.currentTarget.value = '';
+      return;
     }
+
+    uploadProcessingRef.current = true;
+    setUploadError(null);
+    setIsUploadModalOpen(true);
+    setUploadedFiles(fileArray.map((f) => ({ name: f.name, progress: 0 })));
+
+    let currentProgress = 0;
+    const interval = setInterval(() => {
+      currentProgress += Math.random() * 40;
+      if (currentProgress >= 100) {
+        currentProgress = 100;
+        clearInterval(interval);
+      }
+      setUploadedFiles((prev) =>
+        prev.map((f) => ({ ...f, progress: Math.min(currentProgress, 100) }))
+      );
+    }, 300);
+
+    setTimeout(async () => {
+      try {
+        console.log(`[Upload] Starting upload of ${fileArray.length} files...`);
+        const result = await api.uploadTracks(fileArray);
+
+        // CRITICAL: Verify response structure
+        if (!result || !result.tracks) {
+          throw new Error("Invalid API response: missing 'tracks' field");
+        }
+
+        if (result.tracks.length === 0) {
+          throw new Error("API returned empty tracks array");
+        }
+
+        if (result.tracks.length !== fileArray.length) {
+          console.warn(`[Upload] Expected ${fileArray.length} tracks, got ${result.tracks.length}`);
+        }
+
+        console.log(`[Upload] ✅ Received ${result.tracks.length} tracks from API`);
+
+        // CRITICAL FIX: Add tracks in a synchronous batch
+        // Don't use setTimeout, execute immediately so React batches the update
+        addTracks(result.tracks);
+        console.log(`[Upload] ✅ Added ${result.tracks.length} tracks to playlist`);
+        console.log(`[Upload] Current track count: ${tracks.length} + ${result.tracks.length} = ${tracks.length + result.tracks.length}`);
+
+        // Verify tracks are actually in the list
+        if (tracks.length === 0) {
+          console.warn("[Upload] WARNING: tracks array still empty after addTracks()");
+        }
+
+        // Close modal AFTER tracks are definitely added
+        // Use slightly longer delay to ensure React renders the update
+        setTimeout(() => {
+          console.log(`[Upload] Closing modal...`);
+          setIsUploadModalOpen(false);
+          setUploadedFiles([]);
+          clearInterval(interval);
+          uploadProcessingRef.current = false;
+          console.log("[Upload] ✅ Modal closed");
+        }, 1000);
+
+        // Start analysis polling in background
+        result.tracks.forEach((track) => {
+          console.log(`[Upload] 🔄 Starting analysis for: ${track.file_name}`);
+          analyzeTrack(track.id, (trackId, analyzedTrack) => {
+            console.log(`[Upload] ✅ Analysis complete: ${trackId}`);
+            updateTrack(trackId, analyzedTrack);
+          });
+        });
+      } catch (err) {
+        console.error("[Upload] ❌ Upload failed:", err);
+        const errorMsg = err instanceof Error ? err.message : "Erro ao fazer upload";
+        setUploadError(`❌ ${errorMsg}`);
+        setIsUploadModalOpen(false);
+        setUploadedFiles([]);
+        clearInterval(interval);
+        uploadProcessingRef.current = false;
+        setTimeout(() => setUploadError(null), 8000);
+      }
+    }, 2500);
+
+    // Reset file input
+    e.currentTarget.value = '';
   };
 
   const handleDownloadSelected = async () => {
@@ -303,13 +429,56 @@ function HomeContent() {
 
   const handleUpdateTrack = async (updates: Partial<Track>) => {
     if (!editingTrack) return;
+
+    console.log(`[Edit] Starting update for track ${editingTrack.id}`);
+    console.log(`[Edit] Updates to apply:`, updates);
+
+    setIsEditLoading(true);
+    setEditError(null);
+
+    // Step 1: Optimistic update - show changes immediately
+    const previousTrack = editingTrack;
+    const updatedTrack = { ...editingTrack, ...updates };
+    updateTrack(editingTrack.id, updatedTrack);
+    console.log(`[Edit] ✅ Optimistic update applied for track ${editingTrack.id}`);
+    console.log(`[Edit] Before:`, previousTrack);
+    console.log(`[Edit] After:`, updatedTrack);
+
     try {
+      // Step 2: Sync with backend
+      console.log(`[Edit] 🔄 Syncing with backend...`);
       const result = await api.updateTrack(editingTrack.id, updates);
+
+      // Verify backend response
+      if (!result.track) {
+        throw new Error("Invalid response from server");
+      }
+
+      // Step 3: Update with actual backend data (in case server made adjustments)
       updateTrack(editingTrack.id, result.track);
-      setIsEditModalOpen(false);
-      setEditingTrack(null);
+      console.log(`[Edit] ✅ Backend confirmed - track saved successfully`);
+      console.log(`[Edit] Final state:`, result.track);
+
+      // Close modal after short delay for feedback
+      setTimeout(() => {
+        setIsEditModalOpen(false);
+        setEditingTrack(null);
+        setIsEditLoading(false);
+        console.log(`[Edit] Modal closed`);
+      }, 300);
     } catch (err) {
-      console.error("Update failed:", err);
+      console.error("[Edit] ❌ Update failed:", err);
+
+      // Revert optimistic update on error
+      console.log(`[Edit] Reverting optimistic update...`);
+      updateTrack(previousTrack.id, previousTrack);
+      setEditError(
+        err instanceof Error ? err.message : "Erro ao salvar as alterações"
+      );
+      setIsEditLoading(false);
+
+      // Clear error after 5 seconds
+      setTimeout(() => setEditError(null), 5000);
     }
   };
 
@@ -321,6 +490,115 @@ function HomeContent() {
       setIsExportModalOpen(true);
     }
   };
+
+  // Drag handlers with manual reorder flag - SAFE VERSION
+  const handleDragStartWithFlag = (track: Track, idx: number) => {
+    setManualReorderInProgress(true);
+    handleDragStart(track, idx);
+    console.log(`[Drag] START: Manual reorder started for track at index ${idx}`);
+  };
+
+  const handleDragEndWithFlag = () => {
+    handleDragEnd();
+    // IMPORTANT: Keep flag ON briefly after drop to prevent auto-reorder race
+    console.log("[Drag] END: Drag ended, keeping manual reorder flag to prevent race");
+  };
+
+  const handleDropWithFlag = (idx: number) => {
+    console.log(`[Drag] DROP: Reordering to index ${idx}. Current tracks: ${tracks.length}`);
+
+    if (!draggedItem) {
+      console.warn("[Drag] DROP: No draggedItem, aborting");
+      setManualReorderInProgress(false);
+      return;
+    }
+
+    // Execute the drop
+    handleDrop(idx, tracks, reorderTracks);
+
+    // Keep flag ON for a bit longer to ensure state settles
+    // This prevents auto-reorder from firing during state updates
+    setTimeout(() => {
+      setManualReorderInProgress(false);
+      console.log("[Drag] DROP: Manual reorder flag cleared after state settle");
+    }, 500);
+  };
+
+  const handleCamelotKeySelect = async (key: string) => {
+    setSelectedCamelotKey(key);
+    setSuggestedLoading(true);
+    setSuggestedNextTrack(null);
+
+    try {
+      // Get the last track with this key from current playlist
+      const lastTrackWithKey = [...tracks].reverse().find((t) => t.key_camelot === key);
+
+      if (!lastTrackWithKey) {
+        console.log(`[Camelot] No tracks found with key ${key}`);
+        setSuggestedLoading(false);
+        return;
+      }
+
+      // Call backend to suggest next track
+      const response = await fetch(`/api/playlists/suggest-next`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lastTrackKey: key,
+          lastTrackBPM: lastTrackWithKey.bpm || 120,
+          lastTrackEnergy: lastTrackWithKey.energy_level || 5,
+          playlistTrackIds: tracks.map((t) => t.id),
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to get suggestion");
+
+      const data = await response.json();
+      setSuggestedNextTrack(data.suggestedTrack);
+      console.log(`[Camelot] Suggested next track for key ${key}:`, data.suggestedTrack);
+    } catch (err) {
+      console.error("[Camelot] Error getting suggestion:", err);
+    } finally {
+      setSuggestedLoading(false);
+    }
+  };
+
+  // Auto-reorder harmonically when tracks finish analysis
+  // IMPORTANT: Skip if user is doing manual reordering to avoid conflicts
+  // Also: Only run once per analysis cycle to prevent infinite loops
+  const autoReorderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (tracks.length < 2 || manualReorderInProgress) {
+      console.log("[AutoOrder] Skipping: manual reorder in progress or too few tracks");
+      return;
+    }
+
+    // Count tracks with full analysis data
+    const fullyAnalyzedTracks = tracks.filter((t) => t.status === "analyzed" && t.bpm && t.key_camelot);
+
+    // Only auto-reorder if we have at least 2 fully analyzed tracks
+    if (fullyAnalyzedTracks.length >= 2) {
+      // Clear any pending timeout
+      if (autoReorderTimeoutRef.current) {
+        clearTimeout(autoReorderTimeoutRef.current);
+      }
+
+      // Wait a moment for analysis to stabilize before reordering
+      autoReorderTimeoutRef.current = setTimeout(() => {
+        console.log(`[AutoOrder] Auto-ordering ${fullyAnalyzedTracks.length} analyzed tracks...`);
+        autoOrderPlaylist();
+        autoReorderTimeoutRef.current = null;
+      }, 1200);
+
+      // Cleanup on unmount
+      return () => {
+        if (autoReorderTimeoutRef.current) {
+          clearTimeout(autoReorderTimeoutRef.current);
+        }
+      };
+    }
+  }, [tracks.filter((t) => t.status === "analyzed").map((t) => t.id).join(","), autoOrderPlaylist, manualReorderInProgress]);
 
   return (
     <div className="min-h-screen bg-background-main text-text-high">
@@ -347,7 +625,7 @@ function HomeContent() {
               <Info text="Soma da duração de todas as faixas na lista." />
             </div>
             <div className="text-[22px] font-semibold tracking-tight text-action-primary">
-              01:24:30
+              {formattedDuration}
             </div>
           </div>
           <div>
@@ -377,7 +655,29 @@ function HomeContent() {
           <div>
             {/* Step 1: Upload */}
             <SectionLabel step={1}>Enviar músicas</SectionLabel>
-            <div className="bg-background-elevated/50 rounded-xl p-8 mb-6 border border-border-light/50 hover:border-border-light/80 transition-colors">
+            <div
+              className="bg-background-elevated/50 rounded-xl p-8 mb-6 border border-border-light/50 hover:border-border-light/80 transition-colors"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.add("border-action-primary", "bg-action-primary/5");
+              }}
+              onDragLeave={(e) => {
+                e.currentTarget.classList.remove("border-action-primary", "bg-action-primary/5");
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.classList.remove("border-action-primary", "bg-action-primary/5");
+                const files = e.dataTransfer.files;
+                if (files && files.length > 0) {
+                  const event = new Event("change", { bubbles: true });
+                  Object.defineProperty(event, "target", {
+                    writable: false,
+                    value: { files: files } as any,
+                  });
+                  fileInputRef.current?.dispatchEvent(event);
+                }
+              }}
+            >
               <input
                 ref={fileInputRef}
                 type="file"
@@ -398,8 +698,11 @@ function HomeContent() {
                     <div className="text-base font-semibold text-text-high mb-1">
                       Arraste suas músicas aqui
                     </div>
-                    <div className="text-sm text-text-medium mb-3">
+                    <div className="text-sm text-text-medium mb-1">
                       ou clique para selecionar arquivos MP3, WAV, AIFF
+                    </div>
+                    <div className="text-[11px] text-text-low/70 mb-3">
+                      💡 Máximo {MAX_TRACKS_PER_UPLOAD} faixas por vez para melhor performance
                     </div>
                     <div className="inline-block px-4 py-2 rounded-lg bg-action-primary text-black font-semibold text-sm hover:bg-action-primaryHover transition-colors">
                       Selecionar arquivos
@@ -500,11 +803,20 @@ function HomeContent() {
                 </div>
               )}
 
+              {uploadError && (
+                <div className="mb-4 p-3 bg-action-danger/20 border border-action-danger/40 rounded-lg">
+                  <div className="text-sm text-action-danger">{uploadError}</div>
+                </div>
+              )}
+
               {tracks.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-sm text-text-low mb-2">Nenhuma faixa ainda</div>
-                  <div className="text-xs text-text-low/60">
+                  <div className="text-xs text-text-low/60 mb-4">
                     Comece enviando suas músicas acima
+                  </div>
+                  <div className="text-[11px] text-text-low/50 bg-background-elevated/30 inline-block px-3 py-2 rounded-md">
+                    💡 Dica: Máximo {MAX_TRACKS_PER_UPLOAD} faixas por vez para melhor desempenho
                   </div>
                 </div>
               ) : (
@@ -513,10 +825,10 @@ function HomeContent() {
                     <div
                       key={t.id}
                       draggable
-                      onDragStart={() => handleDragStart(t, idx)}
-                      onDragEnd={handleDragEnd}
+                      onDragStart={() => handleDragStartWithFlag(t, idx)}
+                      onDragEnd={handleDragEndWithFlag}
                       onDragOver={() => handleDragOver(idx)}
-                      onDrop={() => handleDrop(idx, tracks, reorderTracks)}
+                      onDrop={() => handleDropWithFlag(idx)}
                       className={`flex items-center gap-3 p-3 rounded-lg transition-all cursor-move ${
                         selectedIds.has(t.id)
                           ? "bg-action-secondary/10 border border-action-secondary/30"
@@ -537,8 +849,10 @@ function HomeContent() {
                       </button>
 
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{t.file_name || t.title}</div>
+                        <div className="text-sm font-medium truncate">{t.title || t.file_name}</div>
                         <div className="text-xs text-text-low mt-1 flex items-center gap-2">
+                          {t.artist && <span title="Artista">{t.artist}</span>}
+                          {t.artist && <span>·</span>}
                           <span title="Camelot key (estimated from audio analysis)">{t.key_camelot || "—"}</span>
                           <span>·</span>
                           <span title="BPM detected from audio">{t.bpm || "—"} BPM</span>
@@ -590,28 +904,60 @@ function HomeContent() {
           {/* SIDEBAR */}
           <div className="flex flex-col gap-6">
             <div className="bg-background-elevated/30 rounded-lg p-4 border border-border-light/30">
-              <div className="text-[11px] uppercase tracking-[0.06em] text-text-medium mb-2 flex items-center gap-1.5">
+              <div className="text-[11px] uppercase tracking-[0.06em] text-text-medium mb-3 flex items-center gap-1.5">
                 Roda Camelot
-                <Info text="Sistema visual para achar tons compatíveis. Tons vizinhos mixam sem dissonância." />
+                <Info text="Clique em um tom para ver a próxima sugestão harmônica. Verde = tons no seu set. Roxo = selecionado. Ciano = compatível." />
               </div>
-              <div className="text-[11px] text-text-low mb-3 leading-snug">
-                Ativa: <strong className="text-action-primary">8A</strong>
+              <div className="flex justify-center">
+                <CamelotWheel
+                  activeTracks={tracks.filter((t) => t.key_camelot).map((t) => t.key_camelot!)}
+                  selectedKey={selectedCamelotKey}
+                  onSelectKey={handleCamelotKeySelect}
+                />
               </div>
-              <CamelotWheel />
             </div>
 
-            <div className="bg-background-elevated/30 rounded-lg p-4 border border-border-light/30 hover:border-action-secondary/30 transition-colors">
-              <div className="text-[11px] uppercase tracking-[0.06em] text-text-medium mb-2 flex items-center gap-1.5">
-                Próxima sugerida
-                <Info text="Escolhida por compatibilidade harmônica e energia." />
-              </div>
-              <div className="p-3 bg-background-surface/60 rounded-lg text-[13px] border border-border-light/20 hover:border-action-secondary/40 transition-colors">
-                <div className="font-medium mb-1">Deep Signal</div>
-                <div className="text-text-low text-[11px]">
-                  9A · 125 BPM · +1 energia
+            {selectedCamelotKey && (
+              <div className="bg-background-elevated/30 rounded-lg p-4 border border-border-light/30 hover:border-action-secondary/30 transition-colors">
+                <div className="text-[11px] uppercase tracking-[0.06em] text-text-medium mb-3 flex items-center gap-1.5">
+                  Próxima Sugerida
+                  <Info text="Compatível harmonicamente com a seleção. Clique para adicionar." />
                 </div>
+
+                {suggestedLoading ? (
+                  <div className="flex items-center justify-center py-4 text-text-low">
+                    <div className="w-4 h-4 border-2 border-action-secondary border-t-transparent rounded-full animate-spin mr-2" />
+                    Buscando sugestão...
+                  </div>
+                ) : suggestedNextTrack ? (
+                  <div className="space-y-2">
+                    <div className="p-3 bg-background-surface/60 rounded-lg text-[13px] border border-border-light/20 hover:border-action-secondary/40 transition-colors">
+                      <div className="font-medium mb-1">{suggestedNextTrack.title || suggestedNextTrack.file_name}</div>
+                      <div className="text-text-low text-[11px] mb-2">
+                        {suggestedNextTrack.key_camelot} · {suggestedNextTrack.bpm} BPM · 🔋 {suggestedNextTrack.energy_level}
+                      </div>
+                      <div className="text-[10px] text-action-secondary font-medium">
+                        Compatibilidade: {Math.round((suggestedNextTrack.compatibilityScore || 0) * 100)}%
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        addTracks([suggestedNextTrack]);
+                        setSuggestedNextTrack(null);
+                        console.log("[Camelot] Added suggested track to playlist");
+                      }}
+                      className="w-full py-2 px-3 text-xs font-medium bg-action-secondary/20 text-action-secondary hover:bg-action-secondary/30 rounded-md transition-colors"
+                    >
+                      Adicionar à playlist
+                    </button>
+                  </div>
+                ) : (
+                  <div className="py-4 text-center text-text-low text-[12px]">
+                    Selecione um tom na roda acima
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             <div className="bg-background-elevated/30 rounded-lg p-4 border border-border-light/30">
               <div className="text-[11px] uppercase tracking-[0.06em] text-text-medium mb-2 flex items-center gap-1.5">
@@ -657,8 +1003,13 @@ function HomeContent() {
       <EditTrackModal
         isOpen={isEditModalOpen}
         track={editingTrack}
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditError(null);
+        }}
         onSubmit={handleUpdateTrack}
+        isLoading={isEditLoading}
+        error={editError}
       />
       <ExportModal
         isOpen={isExportModalOpen}

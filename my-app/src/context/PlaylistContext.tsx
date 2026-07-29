@@ -130,17 +130,39 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
    * Then verifies with debounced save
    */
   const addTracks = useCallback((newTracks: Track[]) => {
-    if (!newTracks || newTracks.length === 0) return;
+    if (!newTracks || newTracks.length === 0) {
+      console.warn("[PlaylistContext] addTracks called with empty array");
+      return;
+    }
+
+    console.log(`[PlaylistContext] Adding ${newTracks.length} tracks...`);
+
+    // CRITICAL: Validate all tracks have required fields
+    newTracks.forEach((t, idx) => {
+      if (!t.id) console.error(`[PlaylistContext] Track ${idx} missing ID`);
+      if (!t.file_name && !t.title) console.error(`[PlaylistContext] Track ${idx} missing name`);
+    });
 
     // Optimistic update - show tracks immediately
     setTracks((prev) => {
       const trackIds = new Set(prev.map((t) => t.id));
-      // Filter out any duplicates
-      const uniqueNew = newTracks.filter((t) => !trackIds.has(t.id));
-      return [...prev, ...uniqueNew];
-    });
+      const uniqueNew = newTracks.filter((t) => {
+        if (trackIds.has(t.id)) {
+          console.warn(`[PlaylistContext] Duplicate track skipped: ${t.id}`);
+          return false;
+        }
+        return true;
+      });
 
-    console.log(`[PlaylistContext] Added ${newTracks.length} tracks`);
+      if (uniqueNew.length === 0) {
+        console.warn("[PlaylistContext] All tracks were duplicates");
+        return prev;
+      }
+
+      const updated = [...prev, ...uniqueNew];
+      console.log(`[PlaylistContext] ✅ State updated: ${prev.length} → ${updated.length} tracks`);
+      return updated;
+    });
   }, []);
 
   const removeTrack = useCallback((trackId: string) => {
@@ -153,14 +175,49 @@ export function PlaylistProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateTrack = useCallback((trackId: string, updates: Partial<Track>) => {
-    setTracks((prev) =>
-      prev.map((t) => (t.id === trackId ? { ...t, ...updates } : t))
-    );
+    console.log(`[PlaylistContext] updateTrack called for ${trackId}:`, updates);
+
+    setTracks((prev) => {
+      const updated = prev.map((t) => {
+        if (t.id === trackId) {
+          const newTrack = { ...t, ...updates };
+          console.log(`[PlaylistContext] ✅ Track updated:`, {
+            id: trackId,
+            before: t,
+            after: newTrack,
+          });
+          return newTrack;
+        }
+        return t;
+      });
+
+      return updated;
+    });
   }, []);
 
   const reorderTracks = useCallback((newOrder: Track[]) => {
+    // VALIDATION: Ensure we're not losing tracks
+    if (!newOrder || newOrder.length === 0) {
+      console.error("[Reorder] CRITICAL: Attempted to set empty tracks array");
+      return;
+    }
+
+    if (newOrder.length < tracks.length) {
+      console.warn(
+        `[Reorder] WARNING: Track count decreased from ${tracks.length} to ${newOrder.length}`
+      );
+    }
+
+    // Verify all tracks have IDs (safety check)
+    const missingIds = newOrder.filter((t) => !t.id);
+    if (missingIds.length > 0) {
+      console.error(`[Reorder] ERROR: ${missingIds.length} tracks missing IDs`);
+      return;
+    }
+
+    console.log(`[Reorder] Reordering tracks: ${tracks.length} → ${newOrder.length}`);
     setTracks(newOrder);
-  }, []);
+  }, [tracks.length]);
 
   const toggleSelection = useCallback((trackId: string) => {
     setSelectedIds((prev) => {
