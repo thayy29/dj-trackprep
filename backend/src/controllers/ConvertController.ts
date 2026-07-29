@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { ConvertService } from "../services/convertService.js";
+import { ConvertService } from "../services/convertService";
 
 export class ConvertController {
   constructor(private convertService: ConvertService) {}

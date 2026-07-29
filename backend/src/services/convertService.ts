@@ -1,6 +1,10 @@
-import { ConvertRepository } from "../repositories/ConvertRepository.js";
-import { ConvertPreset, Export } from "../types/index.js";
-import { logger } from "../logger.js";
+import { ConvertRepository } from "../repositories/ConvertRepository";
+import { ConvertPreset, Export } from "../types/index";
+import { logger } from "../logger";
+import * as archiver from "archiver";
+import fs from "fs";
+import path from "path";
+import { createWriteStream } from "fs";
 
 export class ConvertService {
   constructor(private convertRepository: ConvertRepository) {}
@@ -106,5 +110,59 @@ export class ConvertService {
     const timestamp = new Date().toISOString().split("T")[0];
     const safeTitle = playlistTitle.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
     return `${safeTitle}_${presetName}_${timestamp}.${format}`;
+  }
+
+  /**
+   * Create a ZIP export containing all tracks from a playlist
+   * Returns the path to the generated ZIP file
+   */
+  async createZipExport(
+    exportId: string,
+    playlistId: string,
+    playlistTitle: string,
+    trackFilePaths: string[],
+    exportsDir: string
+  ): Promise<string> {
+    try {
+      // Create exports directory if it doesn't exist
+      const exportDir = path.join(exportsDir, exportId);
+      if (!fs.existsSync(exportDir)) {
+        fs.mkdirSync(exportDir, { recursive: true });
+      }
+
+      const zipPath = path.join(exportDir, `${playlistTitle.replace(/[^a-z0-9-]/gi, "-").toLowerCase()}.zip`);
+
+      return new Promise((resolve, reject) => {
+        const output = createWriteStream(zipPath);
+        const archive = archiver("zip", { zlib: { level: 6 } });
+
+        output.on("close", () => {
+          logger.info(`ZIP created: ${zipPath} (${archive.pointer()} bytes)`);
+          resolve(zipPath);
+        });
+
+        archive.on("error", (err) => {
+          logger.error(`ZIP creation error:`, err);
+          reject(err);
+        });
+
+        archive.pipe(output);
+
+        // Add each track file to the ZIP
+        for (const filePath of trackFilePaths) {
+          if (fs.existsSync(filePath)) {
+            const filename = path.basename(filePath);
+            archive.file(filePath, { name: filename });
+          } else {
+            logger.warn(`Track file not found for ZIP: ${filePath}`);
+          }
+        }
+
+        archive.finalize();
+      });
+    } catch (error) {
+      logger.error(`Failed to create ZIP export:`, error);
+      throw error;
+    }
   }
 }

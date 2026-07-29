@@ -1,17 +1,22 @@
 import { Router } from "express";
 import { z } from "zod";
-import { asyncHandler } from "../middleware/errorHandler.js";
-import { validateBody } from "../middleware/validation.js";
-import { getDb } from "../db/database.js";
-import { ConvertRepository } from "../repositories/ConvertRepository.js";
-import { ConvertService } from "../services/convertService.js";
-import { ConvertController } from "../controllers/ConvertController.js";
-import { logger } from "../logger.js";
+import { asyncHandler, AppError } from "../middleware/errorHandler";
+import { validateBody } from "../middleware/validation";
+import { getDb } from "../db/database";
+import { ConvertRepository } from "../repositories/ConvertRepository";
+import { PlaylistRepository } from "../repositories/PlaylistRepository";
+import { TrackRepository } from "../repositories/TrackRepository";
+import { ConvertService } from "../services/convertService";
+import { ConvertController } from "../controllers/ConvertController";
+import { logger } from "../logger";
+import { env } from "../env";
 
 const router: Router = Router();
 
 let controller: ConvertController;
 let convertService: ConvertService;
+let playlistRepository: PlaylistRepository;
+let trackRepository: TrackRepository;
 
 router.use(
   asyncHandler(async (req, res, next) => {
@@ -19,6 +24,8 @@ router.use(
       const db = getDb();
       const repository = new ConvertRepository(db);
       convertService = new ConvertService(repository);
+      playlistRepository = new PlaylistRepository(db);
+      trackRepository = new TrackRepository(db);
       controller = new ConvertController(convertService);
 
       // Initialize presets on first use
@@ -77,17 +84,78 @@ router.get(
   })
 );
 
+// GET /api/convert/exports/:id/download - Download export ZIP
+router.get(
+  "/exports/:id/download",
+  asyncHandler(async (req, res, next) => {
+    const exportJob = await convertService.getExport(req.params.id);
+    if (!exportJob) {
+      throw new AppError(404, "Export not found", "EXPORT_NOT_FOUND");
+    }
+
+    if (exportJob.status !== "completed" || !exportJob.output_path) {
+      throw new AppError(400, "Export is not ready for download", "EXPORT_NOT_READY");
+    }
+
+    // Construct full path (output_path is relative like /exports/:id/playlist.zip)
+    const basePath = env.EXPORT_DIR || "./exports";
+    const zipPath = require("path").join(basePath, exportJob.output_path);
+
+    // Verify file exists
+    if (!require("fs").existsSync(zipPath)) {
+      throw new AppError(404, "Export file not found", "FILE_NOT_FOUND");
+    }
+
+    // Send file as download
+    const filename = require("path").basename(zipPath);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    const fileStream = require("fs").createReadStream(zipPath);
+    fileStream.pipe(res);
+
+    fileStream.on("error", (err) => {
+      logger.error(`Error streaming export file:`, err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: { message: "Error downloading file", code: "DOWNLOAD_ERROR" } });
+      }
+    });
+  })
+);
+
 async function processExport(exportId: string): Promise<void> {
   try {
     const exportJob = await convertService.getExport(exportId);
     if (!exportJob) return;
 
     await convertService.updateExportStatus(exportId, "processing");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    const mockOutputPath = `/exports/${exportId}/playlist.zip`;
-    await convertService.updateExportStatus(exportId, "completed", mockOutputPath);
-    logger.info(`Export completed: ${exportId}`);
+    // Get playlist and its tracks
+    const playlist = await playlistRepository.getByIdWithTracks(exportJob.playlist_id);
+    if (!playlist) {
+      throw new AppError(404, "Playlist not found", "PLAYLIST_NOT_FOUND");
+    }
+
+    // Get track file paths
+    const trackFilePaths = playlist.tracks.map((t: any) => t.file_path).filter((p: any) => p);
+
+    if (trackFilePaths.length === 0) {
+      throw new AppError(400, "Playlist has no tracks", "NO_TRACKS");
+    }
+
+    // Create ZIP file
+    const zipPath = await convertService.createZipExport(
+      exportId,
+      exportJob.playlist_id,
+      playlist.title,
+      trackFilePaths,
+      env.EXPORT_DIR || "./exports"
+    );
+
+    // Update export with completed status
+    const relativeZipPath = `/exports/${exportId}/${require("path").basename(zipPath)}`;
+    await convertService.updateExportStatus(exportId, "completed", relativeZipPath);
+    logger.info(`Export completed: ${exportId} - ${zipPath}`);
   } catch (error) {
     logger.error(`Export processing error for ${exportId}:`, error);
     await convertService.updateExportStatus(exportId, "error");

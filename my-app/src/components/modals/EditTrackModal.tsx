@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Track } from "../../types/index.js";
 
 interface EditTrackModalProps {
@@ -7,6 +7,7 @@ interface EditTrackModalProps {
   onClose: () => void;
   onSubmit: (updates: Partial<Track>) => void;
   isLoading?: boolean;
+  error?: string | null;
 }
 
 const CAMELOT_KEYS = [
@@ -20,22 +21,73 @@ export function EditTrackModal({
   onClose,
   onSubmit,
   isLoading,
+  error,
 }: EditTrackModalProps) {
-  const [title, setTitle] = useState(track?.title || "");
-  const [artist, setArtist] = useState(track?.artist || "");
-  const [bpm, setBpm] = useState(track?.bpm?.toString() || "");
-  const [key, setKey] = useState(track?.key_camelot || "");
-  const [energy, setEnergy] = useState(track?.energy_level?.toString() || "");
+  const [title, setTitle] = useState("");
+  const [artist, setArtist] = useState("");
+  const [bpm, setBpm] = useState("");
+  const [key, setKey] = useState("");
+  const [energy, setEnergy] = useState("");
+
+  // Sync state when track or modal opens - SAFE: only on open or track change
+  useEffect(() => {
+    if (isOpen && track) {
+      // Pre-fill form with current track data
+      setTitle(track.title || "");
+      setArtist(track.artist || "");
+      setBpm(track.bpm?.toString() || "");
+      setKey(track.key_camelot || "");
+      setEnergy(track.energy_level?.toString() || "");
+      console.log("[EditModal] Pre-filled form for track:", track.id);
+    } else if (!isOpen) {
+      // Clear state when modal closes (prevent stale data leaking)
+      setTitle("");
+      setArtist("");
+      setBpm("");
+      setKey("");
+      setEnergy("");
+      console.log("[EditModal] Cleared form state");
+    }
+  }, [isOpen, track?.id]); // Only sync on modal open/close or track change
 
   const handleSubmit = () => {
-    const updates: Partial<Track> = {};
-    if (title !== track?.title) updates.title = title;
-    if (artist !== track?.artist) updates.artist = artist;
-    if (bpm && parseInt(bpm) !== track?.bpm) updates.bpm = parseInt(bpm);
-    if (key !== track?.key_camelot) updates.key_camelot = key;
-    if (energy && parseInt(energy) !== track?.energy_level)
-      updates.energy_level = parseInt(energy);
+    if (!track) {
+      console.error("[EditModal] ERROR: No track selected for edit");
+      return;
+    }
 
+    const updates: Partial<Track> = {};
+
+    // CRITICAL FIX: Compare current values with original track values
+    // Include field if it changed (even to empty string)
+    const originalTitle = track.title || "";
+    const originalArtist = track.artist || "";
+    const originalBpm = track.bpm || 0;
+    const originalKey = track.key_camelot || "";
+    const originalEnergy = track.energy_level || 1;
+
+    console.log("[EditModal] Comparing values:");
+    console.log(`  Title: "${originalTitle}" → "${title}" (changed: ${originalTitle !== title})`);
+    console.log(`  Artist: "${originalArtist}" → "${artist}" (changed: ${originalArtist !== artist})`);
+    console.log(`  BPM: ${originalBpm} → ${bpm} (changed: ${originalBpm !== parseInt(bpm)})`);
+    console.log(`  Key: "${originalKey}" → "${key}" (changed: ${originalKey !== key})`);
+    console.log(`  Energy: ${originalEnergy} → ${energy} (changed: ${originalEnergy !== parseInt(energy)})`);
+
+    // Include field if it changed (compare with original, not just if not empty)
+    if (title !== originalTitle) updates.title = title;
+    if (artist !== originalArtist) updates.artist = artist;
+    if (bpm && parseInt(bpm) !== originalBpm) updates.bpm = parseInt(bpm);
+    if (key !== originalKey) updates.key_camelot = key;
+    if (energy && parseInt(energy) !== originalEnergy) updates.energy_level = parseInt(energy);
+
+    // Only submit if there are actual changes
+    if (Object.keys(updates).length === 0) {
+      console.log("[EditModal] ℹ️ No changes detected");
+      onClose();
+      return;
+    }
+
+    console.log("[EditModal] ✅ Submitting updates:", updates);
     onSubmit(updates);
   };
 
@@ -45,6 +97,12 @@ export function EditTrackModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-background-surface rounded-xl p-8 max-w-md w-full mx-4 border border-border-light">
         <h2 className="text-xl font-semibold mb-6">Editar faixa</h2>
+
+        {error && (
+          <div className="mb-6 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+            <div className="text-sm text-red-400">❌ {error}</div>
+          </div>
+        )}
 
         <div className="space-y-4 mb-6">
           <div>

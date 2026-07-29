@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Request, Response, NextFunction } from "express";
-import { AppError } from "./errorHandler.js";
+import { AppError } from "./errorHandler";
 
 export function validateBody(schema: z.ZodSchema) {
   return (req: Request, res: Response, next: NextFunction) => {

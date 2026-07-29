@@ -1,8 +1,8 @@
-import { PlaylistRepository } from "../repositories/PlaylistRepository.js";
-import { TrackRepository } from "../repositories/TrackRepository.js";
-import { Playlist, Track } from "../types/index.js";
-import { logger } from "../logger.js";
-import { calculateKeyDistance } from "./audioAnalyzer.js";
+import { PlaylistRepository } from "../repositories/PlaylistRepository";
+import { TrackRepository } from "../repositories/TrackRepository";
+import { Playlist, Track } from "../types/index";
+import { logger } from "../logger";
+import { calculateKeyDistance } from "./audioAnalyzer";
 
 export class PlaylistService {
   constructor(

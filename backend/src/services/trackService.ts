@@ -1,7 +1,7 @@
-import { TrackRepository } from "../repositories/TrackRepository.js";
-import { Track } from "../types/index.js";
-import { analyzeAudio } from "./audioAnalyzer.js";
-import { logger } from "../logger.js";
+import { TrackRepository } from "../repositories/TrackRepository";
+import { Track } from "../types/index";
+import { analyzeAudio } from "./audioAnalyzer";
+import { logger } from "../logger";
 import fs from "fs";
 import path from "path";
 

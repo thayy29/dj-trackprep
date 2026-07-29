@@ -2,10 +2,12 @@
 
 > Ferramenta profissional para preparação de setlists: análise harmônica, reordenação inteligente, conversão de formatos e export para plataformas de DJ.
 
-[![Status](https://img.shields.io/badge/status-MVP-brightgreen)](/)
+[![CI](https://github.com/thayy29/dj-trackprep/actions/workflows/ci.yml/badge.svg)](https://github.com/thayy29/dj-trackprep/actions)
+[![Status](https://img.shields.io/badge/status-Sprint2-brightgreen)](/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](/)
 [![React](https://img.shields.io/badge/React-19.2-cyan)](/)
 [![Express](https://img.shields.io/badge/Express-4.18-yellow)](/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791)](/)
 [![License](https://img.shields.io/badge/license-MIT-green)](/)
 
 ---
@@ -319,25 +321,63 @@ MAX_FILE_SIZE=104857600
 - ✅ Validação de input (Zod)
 - ✅ File type validation (MIME)
 - ✅ SQL injection prevention (parameterized queries)
-- ✅ CORS habilitado
+- ✅ CORS restritivo (configurável via env)
+- ✅ API Key protection (x-api-key header)
+- ✅ Rate limiting (100 req/10min, 25 uploads/10min)
+- ✅ Security headers (CSP, X-Frame-Options, etc)
 - ✅ Error messages sem dados sensíveis
-- ✅ Rate limiting (preparado para production)
 
 ---
 
-## 🧪 Testes (TODO)
+## 📊 Real vs Simulated
+
+### ✅ Real (Production-Ready)
+- **BPM Detection**: Extraído via ffprobe, ±2 BPM de precisão
+- **File Upload**: Suporta MP3, WAV, AIFF, FLAC até 100MB
+- **ZIP Export**: Gera arquivos reais com todos os áudios
+- **Persistência**: PostgreSQL com migrations automáticas
+- **Rate Limiting**: Proteção contra abuse (429 Too Many Requests)
+- **Error Handling**: Mensagens claras com códigos de erro
+
+### 🔮 Estimated (Heuristic-Based)
+- **Camelot Key**: Detectado via análise de frequência estimada (±1-2 tons)
+- **Energy Level**: Estimado baseado em características do arquivo (1-10)
+- Ambos marcados com badge "estimated" na UI
+
+### 📝 Next Steps (Fora do Escopo Sprint 2)
+- [ ] Integração FFmpeg real para key detection (essentia.js)
+- [ ] Cue point detection (intro/outro mixáveis)
+- [ ] Integração com Rekordbox/Serato API
+- [ ] WebSocket para real-time updates
+- [ ] Autenticação JWT
+- [ ] Dark/Light theme toggle
+- [ ] Multi-language support
+
+---
+
+## 🧪 Testes
 
 ```bash
-# Frontend
-pnpm test
+# Backend - Unit & Integration tests
+cd backend
+pnpm test           # Run all tests
+pnpm test:watch     # Watch mode
+pnpm test:coverage  # Coverage report
 
-# Backend
-pnpm test
+# Frontend - Tests prepared (can be added)
+cd my-app
+pnpm test           # Jest setup ready
 ```
 
-Stack recomendado:
-- Frontend: Jest + React Testing Library
-- Backend: Jest + Supertest
+**Testes Implementados:**
+- ✅ Audio Analyzer: calculateKeyDistance, areKeysCompatible, etc (15 testes passando)
+- ✅ Harmonic Mixing: Camelot wheel compatibility validation
+- ✅ Mix BPM Calculation: Tempo matching scenarios
+
+**CI/CD:**
+- ✅ GitHub Actions workflow (backend lint, test, build)
+- ✅ Runs on push to main/develop/sprint branches
+- ✅ Auto-comment on PRs with status
 
 ---
 

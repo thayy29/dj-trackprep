@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Export } from "../../types/index.js";
 import { IoCheckmarkCircle, IoAlertCircle, IoDownload } from "react-icons/io5";
+import { api } from "../../services/api.js";
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -86,15 +87,14 @@ export function ExportModal({
             )}
           </div>
 
-          {exportJob.output_path && (
-            <a
-              href={exportJob.output_path}
-              download
+          {exportJob.status === "completed" && (
+            <button
+              onClick={() => api.downloadExport(exportJob.id)}
               className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-action-primary text-black text-center rounded-lg text-sm font-semibold hover:bg-action-primaryHover transition-colors"
             >
               <IoDownload className="w-4 h-4" />
               Baixar
-            </a>
+            </button>
           )}
         </div>
 

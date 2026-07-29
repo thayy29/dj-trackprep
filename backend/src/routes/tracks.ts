@@ -3,13 +3,13 @@ import { z } from "zod";
 import multer from "multer";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
-import { env } from "../env.js";
-import { asyncHandler, AppError } from "../middleware/errorHandler.js";
-import { validateBody } from "../middleware/validation.js";
-import { getDb } from "../db/database.js";
-import { TrackRepository } from "../repositories/TrackRepository.js";
-import { TrackService } from "../services/trackService.js";
-import { TrackController } from "../controllers/TrackController.js";
+import { env } from "../env";
+import { asyncHandler, AppError } from "../middleware/errorHandler";
+import { validateBody } from "../middleware/validation";
+import { getDb } from "../db/database";
+import { TrackRepository } from "../repositories/TrackRepository";
+import { TrackService } from "../services/trackService";
+import { TrackController } from "../controllers/TrackController";
 
 const router: Router = Router();
 
