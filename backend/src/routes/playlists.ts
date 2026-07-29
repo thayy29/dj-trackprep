@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import { asyncHandler, AppError } from "../middleware/errorHandler.js";
-import { validateBody } from "../middleware/validation.js";
-import { getDb } from "../db/database.js";
-import { PlaylistRepository } from "../repositories/PlaylistRepository.js";
-import { TrackRepository } from "../repositories/TrackRepository.js";
-import { PlaylistService } from "../services/playlistService.js";
-import { PlaylistController } from "../controllers/PlaylistController.js";
+import { asyncHandler, AppError } from "../middleware/errorHandler";
+import { validateBody } from "../middleware/validation";
+import { getDb } from "../db/database";
+import { PlaylistRepository } from "../repositories/PlaylistRepository";
+import { TrackRepository } from "../repositories/TrackRepository";
+import { PlaylistService } from "../services/playlistService";
+import { PlaylistController } from "../controllers/PlaylistController";
 
 const router: Router = Router();
 

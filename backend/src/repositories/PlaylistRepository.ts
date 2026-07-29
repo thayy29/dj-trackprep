@@ -1,5 +1,5 @@
 import { Knex } from "knex";
-import { Playlist } from "../types/index.js";
+import { Playlist } from "../types/index";
 import { v4 as uuidv4 } from "uuid";
 
 export class PlaylistRepository {

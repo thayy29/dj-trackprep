@@ -161,6 +161,16 @@ export const api = {
   async getExport(id: string): Promise<{ export: Export }> {
     return request("GET", `/convert/exports/${id}`);
   },
+
+  async downloadExport(id: string): Promise<void> {
+    const url = `${import.meta.env.VITE_API_URL || "http://localhost:3000/api"}/convert/exports/${id}/download`;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `export-${id}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  },
 };
 
 export { APIError };

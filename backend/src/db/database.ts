@@ -1,5 +1,5 @@
 import knex, { Knex } from "knex";
-import { logger } from "../logger.js";
+import { logger } from "../logger";
 
 let db: Knex | null = null;
 

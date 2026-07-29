@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { TrackService } from "../services/trackService.js";
-import { logger } from "../logger.js";
+import { TrackService } from "../services/trackService";
+import { logger } from "../logger";
 
 export class TrackController {
   constructor(private trackService: TrackService) {}

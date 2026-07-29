@@ -524,8 +524,17 @@ function HomeContent() {
 
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{t.file_name || t.title}</div>
-                        <div className="text-xs text-text-low mt-1">
-                          {t.key_camelot || "—"} · {t.bpm || "—"} BPM · 🔋 {t.energy_level || "—"}
+                        <div className="text-xs text-text-low mt-1 flex items-center gap-2">
+                          <span title="Camelot key (estimated from audio analysis)">{t.key_camelot || "—"}</span>
+                          <span>·</span>
+                          <span title="BPM detected from audio">{t.bpm || "—"} BPM</span>
+                          <span>·</span>
+                          <span title="Energy level (estimated)">🔋 {t.energy_level || "—"}</span>
+                          {t.status === "analyzed" && (
+                            <span className="text-[10px] bg-action-secondary/20 text-action-secondary px-1.5 py-0.5 rounded">
+                              estimated
+                            </span>
+                          )}
                         </div>
                       </div>
 

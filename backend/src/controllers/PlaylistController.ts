@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { PlaylistService } from "../services/playlistService.js";
+import { PlaylistService } from "../services/playlistService";
 
 export class PlaylistController {
   constructor(private playlistService: PlaylistService) {}

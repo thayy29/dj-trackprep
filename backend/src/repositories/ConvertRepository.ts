@@ -1,5 +1,5 @@
 import { Knex } from "knex";
-import { ConvertPreset, Export } from "../types/index.js";
+import { ConvertPreset, Export } from "../types/index";
 import { v4 as uuidv4 } from "uuid";
 
 export class ConvertRepository {
