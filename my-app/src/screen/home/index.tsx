@@ -229,23 +229,37 @@ function HomeContent() {
       setTimeout(async () => {
         try {
           const result = await api.uploadTracks(fileArray);
-          // Add tracks immediately to show in list
-          addTracks(result.tracks);
 
-          // Close modal after tracks are added (they start as "analyzing")
+          // Verify API response has tracks
+          if (!result.tracks || result.tracks.length === 0) {
+            console.error("[Upload] API returned empty tracks array");
+            setIsUploadModalOpen(false);
+            return;
+          }
+
+          console.log(`[Upload] Got ${result.tracks.length} tracks from API`);
+
+          // Add tracks immediately to show in list (BEFORE modal closes)
+          addTracks(result.tracks);
+          console.log(`[Upload] addTracks called with ${result.tracks.length} tracks`);
+
+          // Close modal after tracks are added and processed
           setTimeout(() => {
             setIsUploadModalOpen(false);
             setUploadedFiles([]);
-          }, 500);
+            console.log("[Upload] Modal closed");
+          }, 800);
 
           // Start analysis polling in background (updates will show automatically)
-          for (const track of result.tracks) {
+          result.tracks.forEach((track) => {
+            console.log(`[Upload] Starting analysis for track ${track.id}`);
             analyzeTrack(track.id, (trackId, analyzedTrack) => {
+              console.log(`[Upload] Track ${trackId} analyzed, updating...`);
               updateTrack(trackId, analyzedTrack);
             });
-          }
+          });
         } catch (err) {
-          console.error("Upload failed:", err);
+          console.error("[Upload] Upload failed:", err);
           setIsUploadModalOpen(false);
         }
       }, 2500);
